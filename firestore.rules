@@ -49,7 +49,7 @@ service cloud.firestore {
       // 名簿。閲覧はメンバー全員(匿名可)。
       // 「自分の行」は claimedByUid で識別する(ログイン画面の代わり)。
       // 未選択の行を自分の行として選ぶ、または既に自分の行になっている場合のみ、
-      // note・submitted・claimedByUid を更新できる。
+      // submitted・claimedByUid を更新できる(投稿時の自動チェックと本人選択用)。
       match /roster/{rosterId} {
         allow read: if isSignedIn();
         allow create, delete: if isAdmin();
@@ -62,7 +62,7 @@ service cloud.firestore {
           ) &&
           request.resource.data.name == resource.data.name &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['note', 'submitted', 'claimedByUid'])
+            .hasOnly(['submitted', 'claimedByUid'])
         );
       }
     }

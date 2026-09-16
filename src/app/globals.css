@@ -1,32 +1,36 @@
 @import "tailwindcss";
 
 /* =============================================================
-   機関誌にふさわしい、落ち着いた誌面をベースにしつつ、
-   現代的なUIパターン(適度な角丸・陰影・インタラクション)で
-   古さを感じさせない見た目にする。彩度は抑えたまま。
+   機関誌にふさわしい誌面。ワイン色のアクセントで、落ち着きつつも
+   単調になりすぎない配色にする。フォントはWebフォントを使わず、
+   OSの日本語フォントをそのまま使う(表示速度を優先)。
    ============================================================= */
 :root {
-  --background: #f5f3ee;
-  --surface: #ffffff;
-  --surface-muted: #faf8f3;
-  --border: #e4ddcf;
-  --border-strong: #cfc6b2;
-  --foreground: #211e17;
-  --muted: #726b5a;
-  --line: #b9b09a;
-  --accent: #3d3626;
-  --accent-soft: #6b6350;
-  --status-open: #3c6b46;
-  --status-open-bg: #e7f0e8;
-  --status-editing: #93641f;
-  --status-editing-bg: #f7edd9;
-  --status-published: #2f4f78;
-  --status-published-bg: #e6edf5;
+  --background: #f6f1e6;
+  --surface: #fffdf9;
+  --surface-muted: #f1e7d3;
+  --border: #e2d2ac;
+  --border-strong: #c9b184;
+  --foreground: #2a2014;
+  --muted: #7c6b4d;
+  --line: #c2ac7c;
+  --accent: #7c2733;
+  --accent-soft: #9c3f4b;
+  --status-open: #2f6b3f;
+  --status-open-bg: #e2f0e3;
+  --status-editing: #a5631a;
+  --status-editing-bg: #faecd3;
+  --status-published: #1f4f7a;
+  --status-published-bg: #dfedf8;
   --danger: #a2402f;
-  --shadow-sm: 0 1px 2px rgba(33, 30, 23, 0.06);
-  --shadow-md: 0 4px 16px rgba(33, 30, 23, 0.08);
+  --shadow-sm: 0 1px 2px rgba(42, 32, 20, 0.07);
+  --shadow-md: 0 6px 20px rgba(42, 32, 20, 0.1);
   --radius: 10px;
   --radius-sm: 6px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN",
+    "Hiragino Sans", "Yu Gothic Medium", "Yu Gothic", Meiryo, sans-serif;
+  --font-serif: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "HG Mincho E",
+    serif;
 }
 
 @theme inline {
@@ -45,8 +49,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), -apple-system, "Hiragino Kaku Gothic ProN",
-    "Hiragino Sans", Meiryo, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
 }
@@ -54,7 +57,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: var(--font-serif), "Hiragino Mincho ProN", serif;
+  font-family: var(--font-serif);
   font-weight: 600;
   letter-spacing: 0.015em;
   color: var(--accent);
@@ -90,7 +93,7 @@ a {
 }
 
 .title {
-  font-family: var(--font-serif), "Hiragino Mincho ProN", serif;
+  font-family: var(--font-serif);
   font-size: 1.1rem;
   letter-spacing: 0.05em;
   color: var(--accent);

@@ -259,7 +259,6 @@ function RosterPanel({ issueId }: { issueId: string }) {
         name: patch.name ?? entry.name,
         grade: patch.grade ?? entry.grade,
         submitted: patch.submitted ?? entry.submitted,
-        note: patch.note ?? entry.note,
       });
       refresh();
     } catch {

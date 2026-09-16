@@ -263,7 +263,6 @@ function toRosterEntry(id: string, data: Record<string, unknown>): RosterEntry {
     name: data.name as string,
     grade: (data.grade as Grade | "") ?? "",
     submitted: Boolean(data.submitted),
-    note: (data.note as string) ?? "",
     claimedByUid: (data.claimedByUid as string | null) ?? null,
   };
 }
@@ -304,7 +303,6 @@ export async function addRosterMember(
     name: input.name,
     grade: input.grade,
     submitted: false,
-    note: "",
     claimedByUid: null,
   });
 }
@@ -312,7 +310,7 @@ export async function addRosterMember(
 export async function updateRosterMemberByAdmin(
   issueId: string,
   rosterId: string,
-  input: { name: string; grade: Grade | ""; submitted: boolean; note: string },
+  input: { name: string; grade: Grade | ""; submitted: boolean },
 ): Promise<void> {
   await updateDoc(doc(db, "issues", issueId, "roster", rosterId), input);
 }
@@ -324,16 +322,6 @@ export async function resetRosterClaim(
 ): Promise<void> {
   await updateDoc(doc(db, "issues", issueId, "roster", rosterId), {
     claimedByUid: null,
-  });
-}
-
-export async function updateOwnRosterNote(
-  issueId: string,
-  rosterId: string,
-  note: string,
-): Promise<void> {
-  await updateDoc(doc(db, "issues", issueId, "roster", rosterId), {
-    note,
   });
 }
 

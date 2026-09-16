@@ -48,7 +48,6 @@ export interface RosterEntry {
   name: string;
   grade: Grade | "";
   submitted: boolean;
-  note: string;
   // このブラウザ(匿名認証のuid)が「自分の行」として選択済みかどうか。
   // ログイン画面を出さずに本人確認をするための仕組み。
   claimedByUid: string | null;

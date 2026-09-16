@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { claimRosterEntry, listRoster, updateOwnRosterNote } from "@/lib/data";
+import { claimRosterEntry, listRoster } from "@/lib/data";
 import type { RosterEntry } from "@/lib/types";
 
 export default function RosterPage() {
@@ -13,8 +13,7 @@ export default function RosterPage() {
 
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [editingNote, setEditingNote] = useState<string>("");
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [claiming, setClaiming] = useState<string | null>(null);
 
   function refresh() {
     listRoster(issueId)
@@ -32,24 +31,15 @@ export default function RosterPage() {
 
   async function handleClaim(rosterId: string) {
     if (!user) return;
+    setClaiming(rosterId);
     setError(null);
     try {
       await claimRosterEntry(issueId, rosterId, user.uid);
       refresh();
     } catch {
       setError("選択に失敗しました。すでに他の人が選んでいる可能性があります。");
-    }
-  }
-
-  async function handleSaveNote(rosterId: string) {
-    setSavingId(rosterId);
-    try {
-      await updateOwnRosterNote(issueId, rosterId, editingNote);
-      refresh();
-    } catch {
-      setError("記入欄の更新に失敗しました。");
     } finally {
-      setSavingId(null);
+      setClaiming(null);
     }
   }
 
@@ -63,7 +53,7 @@ export default function RosterPage() {
 
       {roster !== null && !myEntry && (
         <p className="muted" style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
-          自分の名前の行の「これは自分です」を押すと、以降このブラウザで自分の欄として記入・提出状況の確認ができるようになります。
+          自分の名前の行の「これは自分です」を押すと、以降このブラウザで自分の欄として提出状況の確認ができるようになります。
         </p>
       )}
 
@@ -74,7 +64,7 @@ export default function RosterPage() {
               <th>名前</th>
               <th>学年</th>
               <th>提出</th>
-              <th>記入欄</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -87,29 +77,12 @@ export default function RosterPage() {
                   <td>{entry.submitted ? "提出済み" : "未提出"}</td>
                   <td>
                     {isMine ? (
-                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
-                        <input
-                          className="input"
-                          defaultValue={entry.note}
-                          onChange={(e) => setEditingNote(e.target.value)}
-                          onFocus={(e) => setEditingNote(e.target.value)}
-                        />
-                        <button
-                          type="button"
-                          className="button-outline"
-                          disabled={savingId === entry.id}
-                          onClick={() => handleSaveNote(entry.id)}
-                        >
-                          保存
-                        </button>
-                      </div>
-                    ) : entry.claimedByUid ? (
-                      <span className="muted">{entry.note}</span>
-                    ) : (
+                      <span className="muted" style={{ fontSize: "0.8rem" }}>自分</span>
+                    ) : entry.claimedByUid ? null : (
                       <button
                         type="button"
                         className="button-outline"
-                        disabled={!!myEntry}
+                        disabled={!!myEntry || claiming === entry.id}
                         onClick={() => handleClaim(entry.id)}
                       >
                         これは自分です
