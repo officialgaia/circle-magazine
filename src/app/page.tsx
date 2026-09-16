@@ -20,7 +20,7 @@ function IssueListInner() {
     <div>
       <h1 style={{ fontSize: "1.4rem", marginBottom: "1.5rem" }}>年度一覧</h1>
 
-      {error && <p style={{ color: "#8a3a2f", fontSize: "0.9rem" }}>{error}</p>}
+      {error && <p style={{ color: "var(--danger)", fontSize: "0.9rem" }}>{error}</p>}
 
       {issues === null && !error && (
         <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>

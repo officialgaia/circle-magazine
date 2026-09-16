@@ -41,7 +41,7 @@ export default function RosterPage() {
   return (
     <div>
       <h2 style={{ fontSize: "1.15rem", marginBottom: "1rem" }}>名簿</h2>
-      {error && <p style={{ color: "#8a3a2f", fontSize: "0.9rem" }}>{error}</p>}
+      {error && <p style={{ color: "var(--danger)", fontSize: "0.9rem" }}>{error}</p>}
       {roster === null && !error && (
         <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>
       )}
@@ -51,6 +51,7 @@ export default function RosterPage() {
           <thead>
             <tr>
               <th>名前</th>
+              <th>学年</th>
               <th>提出</th>
               <th>記入欄</th>
             </tr>
@@ -61,6 +62,7 @@ export default function RosterPage() {
               return (
                 <tr key={entry.id}>
                   <td>{entry.name}</td>
+                  <td>{entry.grade || "—"}</td>
                   <td>{entry.submitted ? "提出済み" : "未提出"}</td>
                   <td>
                     {isMine ? (

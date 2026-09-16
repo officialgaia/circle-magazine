@@ -2,18 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 import { getBookletFileUrl, listBookletSections } from "@/lib/data";
 import type { BookletSection } from "@/lib/types";
 
 export default function BookletViewerPage() {
   const params = useParams<{ issueId: string }>();
   const issueId = params.issueId;
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const [sections, setSections] = useState<BookletSection[] | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listBookletSections(issueId)
+    if (authLoading) return;
+    listBookletSections(issueId, { isAdmin, email: user?.email ?? null })
       .then(async (list) => {
         setSections(list);
         const entries = await Promise.all(
@@ -25,11 +28,11 @@ export default function BookletViewerPage() {
         setUrls(Object.fromEntries(entries));
       })
       .catch(() => setError("冊子の内容を取得できませんでした。"));
-  }, [issueId]);
+  }, [issueId, authLoading, isAdmin, user?.email]);
 
   return (
     <div>
-      {error && <p style={{ color: "#8a3a2f", fontSize: "0.9rem" }}>{error}</p>}
+      {error && <p style={{ color: "var(--danger)", fontSize: "0.9rem" }}>{error}</p>}
 
       {sections === null && !error && (
         <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>
@@ -56,6 +59,11 @@ export default function BookletViewerPage() {
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span style={{ fontFamily: "var(--font-serif)" }}>{section.title}</span>
+                {section.locked && (
+                  <span className="muted" style={{ fontSize: "0.78rem", marginLeft: "0.5rem" }}>
+                    (非公開)
+                  </span>
+                )}
               </span>
               {urls[section.id] && (
                 <a

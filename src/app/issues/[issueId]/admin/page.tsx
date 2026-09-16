@@ -15,7 +15,7 @@ import {
   updateBookletSectionOrder,
   updateRosterMemberByAdmin,
 } from "@/lib/data";
-import type { BookletSection, RosterEntry, Submission } from "@/lib/types";
+import { GRADE_OPTIONS, type BookletSection, type Grade, type RosterEntry, type Submission } from "@/lib/types";
 
 function SubmissionsPanel({ issueId }: { issueId: string }) {
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
@@ -38,7 +38,7 @@ function SubmissionsPanel({ issueId }: { issueId: string }) {
   return (
     <section className="card" style={{ marginBottom: "1.5rem" }}>
       <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>投稿された生ファイル</h3>
-      {error && <p style={{ color: "#8a3a2f", fontSize: "0.85rem" }}>{error}</p>}
+      {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
       {submissions === null && <p className="muted" style={{ fontSize: "0.85rem" }}>読み込み中…</p>}
       {submissions !== null && submissions.length === 0 && (
         <p className="muted" style={{ fontSize: "0.85rem" }}>まだ投稿はありません。</p>
@@ -53,6 +53,7 @@ function SubmissionsPanel({ issueId }: { issueId: string }) {
               {s.submitterName} — {s.fileName}
               <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.78rem" }}>
                 {s.format.toUpperCase()}
+                {s.locked ? " ・ 非公開" : ""}
               </span>
             </span>
             <button type="button" className="button-outline" onClick={() => handleDownload(s.storagePath)}>
@@ -67,13 +68,18 @@ function SubmissionsPanel({ issueId }: { issueId: string }) {
 
 function BookletPanel({ issueId }: { issueId: string }) {
   const [sections, setSections] = useState<BookletSection[] | null>(null);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [sourceSubmissionId, setSourceSubmissionId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
-    listBookletSections(issueId).then(setSections).catch(() => setError("セクション一覧を取得できませんでした。"));
+    listBookletSections(issueId, { isAdmin: true, email: null })
+      .then(setSections)
+      .catch(() => setError("セクション一覧を取得できませんでした。"));
+    listSubmissions(issueId).then(setSubmissions).catch(() => {});
   }
   useEffect(refresh, [issueId]);
 
@@ -84,9 +90,11 @@ function BookletPanel({ issueId }: { issueId: string }) {
     setError(null);
     try {
       const nextOrder = (sections?.reduce((max, s) => Math.max(max, s.order), 0) ?? 0) + 1;
-      await addBookletSection({ issueId, title, file, order: nextOrder });
+      const sourceSubmission = submissions.find((s) => s.id === sourceSubmissionId) ?? null;
+      await addBookletSection({ issueId, title, file, order: nextOrder, sourceSubmission });
       setTitle("");
       setFile(null);
+      setSourceSubmissionId("");
       const input = document.getElementById("booklet-file") as HTMLInputElement | null;
       if (input) input.value = "";
       refresh();
@@ -128,7 +136,7 @@ function BookletPanel({ issueId }: { issueId: string }) {
   return (
     <section className="card" style={{ marginBottom: "1.5rem" }}>
       <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>冊子セクション</h3>
-      {error && <p style={{ color: "#8a3a2f", fontSize: "0.85rem" }}>{error}</p>}
+      {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
 
       <ul style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.25rem" }}>
         {sections?.map((section, i) => (
@@ -139,6 +147,11 @@ function BookletPanel({ issueId }: { issueId: string }) {
             <span>
               <span className="muted" style={{ marginRight: "0.5rem" }}>{i + 1}.</span>
               {section.title}
+              {section.locked && (
+                <span className="muted" style={{ fontSize: "0.78rem", marginLeft: "0.5rem" }}>
+                  (非公開 ・ {section.ownerEmail})
+                </span>
+              )}
             </span>
             <span style={{ display: "flex", gap: "0.4rem" }}>
               <button type="button" className="button-outline" onClick={() => handleMove(section, -1)}>
@@ -178,6 +191,26 @@ function BookletPanel({ issueId }: { issueId: string }) {
           />
         </div>
         <div>
+          <label className="label" htmlFor="booklet-source">
+            元になった投稿(任意・非公開設定を引き継ぎます)
+          </label>
+          <select
+            id="booklet-source"
+            className="input"
+            value={sourceSubmissionId}
+            onChange={(e) => setSourceSubmissionId(e.target.value)}
+            style={{ marginTop: "0.3rem" }}
+          >
+            <option value="">指定なし(全員に公開)</option>
+            {submissions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.submitterName} — {s.fileName}
+                {s.locked ? "(非公開)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <button type="submit" className="button" disabled={!title || !file || submitting}>
             {submitting ? "追加中…" : "セクションを追加"}
           </button>
@@ -191,6 +224,7 @@ function RosterPanel({ issueId }: { issueId: string }) {
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [grade, setGrade] = useState<Grade | "">("");
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
@@ -202,9 +236,10 @@ function RosterPanel({ issueId }: { issueId: string }) {
     e.preventDefault();
     if (!name || !email) return;
     try {
-      await addRosterMember(issueId, { name, email });
+      await addRosterMember(issueId, { name, email, grade });
       setName("");
       setEmail("");
+      setGrade("");
       refresh();
     } catch {
       setError("メンバーの追加に失敗しました。");
@@ -216,6 +251,7 @@ function RosterPanel({ issueId }: { issueId: string }) {
       await updateRosterMemberByAdmin(issueId, entry.id, {
         name: patch.name ?? entry.name,
         email: patch.email ?? entry.email,
+        grade: patch.grade ?? entry.grade,
         submitted: patch.submitted ?? entry.submitted,
         note: patch.note ?? entry.note,
       });
@@ -237,12 +273,13 @@ function RosterPanel({ issueId }: { issueId: string }) {
   return (
     <section className="card">
       <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>名簿の管理</h3>
-      {error && <p style={{ color: "#8a3a2f", fontSize: "0.85rem" }}>{error}</p>}
+      {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
 
       <table className="table" style={{ marginBottom: "1.25rem" }}>
         <thead>
           <tr>
             <th>名前</th>
+            <th>学年</th>
             <th>メール</th>
             <th>提出</th>
             <th></th>
@@ -257,6 +294,18 @@ function RosterPanel({ issueId }: { issueId: string }) {
                   defaultValue={entry.name}
                   onBlur={(e) => handleFieldChange(entry, { name: e.target.value })}
                 />
+              </td>
+              <td>
+                <select
+                  className="input"
+                  value={entry.grade}
+                  onChange={(e) => handleFieldChange(entry, { grade: e.target.value as Grade | "" })}
+                >
+                  <option value="">未設定</option>
+                  {GRADE_OPTIONS.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
               </td>
               <td>
                 <input
@@ -286,6 +335,20 @@ function RosterPanel({ issueId }: { issueId: string }) {
         <div>
           <label className="label" htmlFor="roster-name">名前</label>
           <input id="roster-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor="roster-grade">学年</label>
+          <select
+            id="roster-grade"
+            className="input"
+            value={grade}
+            onChange={(e) => setGrade(e.target.value as Grade | "")}
+          >
+            <option value="">未設定</option>
+            {GRADE_OPTIONS.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="label" htmlFor="roster-email">メール</label>

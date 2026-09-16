@@ -35,9 +35,12 @@ service cloud.firestore {
         allow update, delete: if isAdmin();
       }
 
-      // 完成した冊子セクション。閲覧はメンバー全員、編集は管理者のみ。
+      // 完成した冊子セクション。非公開(locked)のセクションは、
+      // 投稿者本人(ownerEmail)と管理者にしか見えない。編集は管理者のみ。
       match /booklet/{sectionId} {
-        allow read: if isSignedIn();
+        allow read: if isAdmin() ||
+          (isSignedIn() && resource.data.locked == false) ||
+          (isSignedIn() && resource.data.ownerEmail == request.auth.token.email);
         allow write: if isAdmin();
       }
 

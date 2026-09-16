@@ -18,6 +18,7 @@ export interface Submission {
   fileName: string;
   storagePath: string;
   submittedAt: number | null;
+  locked: boolean;
 }
 
 export interface BookletSection {
@@ -27,12 +28,26 @@ export interface BookletSection {
   pdfStoragePath: string;
   fileName: string;
   sourceSubmissionId: string | null;
+  locked: boolean;
+  ownerEmail: string | null;
 }
+
+export const GRADE_OPTIONS = [
+  "1年",
+  "2年",
+  "3年",
+  "4年",
+  "院生",
+  "OB・OG",
+] as const;
+
+export type Grade = (typeof GRADE_OPTIONS)[number];
 
 export interface RosterEntry {
   id: string;
   name: string;
   email: string;
+  grade: Grade | "";
   submitted: boolean;
   note: string;
 }

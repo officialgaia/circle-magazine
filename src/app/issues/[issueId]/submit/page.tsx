@@ -3,7 +3,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { createSubmission, listSubmissions } from "@/lib/data";
+import {
+  createSubmission,
+  getSubmissionDownloadUrl,
+  listSubmissions,
+} from "@/lib/data";
 import type { Submission } from "@/lib/types";
 
 export default function SubmitPage() {
@@ -13,9 +17,11 @@ export default function SubmitPage() {
 
   const [mySubmissions, setMySubmissions] = useState<Submission[] | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [locked, setLocked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   function refresh() {
     if (!user?.email) return;
@@ -39,9 +45,11 @@ export default function SubmitPage() {
         submitterName: user.displayName ?? user.email,
         submitterEmail: user.email,
         file,
+        locked,
       });
       setMessage("投稿しました。");
       setFile(null);
+      setLocked(false);
       const input = document.getElementById("file-input") as HTMLInputElement | null;
       if (input) input.value = "";
       refresh();
@@ -49,6 +57,19 @@ export default function SubmitPage() {
       setError("投稿に失敗しました。もう一度お試しください。");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleOpen(submission: Submission) {
+    setOpeningId(submission.id);
+    setError(null);
+    try {
+      const url = await getSubmissionDownloadUrl(submission.storagePath);
+      window.open(url, "_blank", "noreferrer");
+    } catch {
+      setError("ファイルを開けませんでした。");
+    } finally {
+      setOpeningId(null);
     }
   }
 
@@ -70,27 +91,58 @@ export default function SubmitPage() {
             style={{ marginTop: "0.35rem" }}
           />
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.88rem" }}>
+          <input
+            type="checkbox"
+            checked={locked}
+            onChange={(e) => setLocked(e.target.checked)}
+          />
+          この投稿を非公開にする
+        </label>
+        <p className="muted" style={{ fontSize: "0.78rem", marginTop: "-0.5rem" }}>
+          非公開にすると、これを元に冊子セクションが作られた場合も、自分と管理者以外には冊子ビューアに表示されません。
+        </p>
         <div>
           <button type="submit" className="button" disabled={!file || submitting}>
             {submitting ? "投稿中…" : "投稿する"}
           </button>
         </div>
         {message && <p style={{ fontSize: "0.85rem" }}>{message}</p>}
-        {error && <p style={{ color: "#8a3a2f", fontSize: "0.85rem" }}>{error}</p>}
+        {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
       </form>
 
       <h3 style={{ fontSize: "1rem", margin: "1.75rem 0 0.75rem" }}>自分の投稿履歴</h3>
+      <p className="muted" style={{ fontSize: "0.8rem", marginBottom: "0.75rem" }}>
+        自分が投稿したファイルは、いつでもここから開いて確認できます。他のメンバーからは見えません。
+      </p>
       {mySubmissions === null && <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>}
       {mySubmissions !== null && mySubmissions.length === 0 && (
         <p className="muted" style={{ fontSize: "0.9rem" }}>まだ投稿がありません。</p>
       )}
       <ul style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {mySubmissions?.map((s) => (
-          <li key={s.id} className="card" style={{ fontSize: "0.9rem" }}>
-            <span>{s.fileName}</span>
-            <span className="muted" style={{ marginLeft: "0.75rem", fontSize: "0.8rem" }}>
-              {s.format.toUpperCase()}
-              {s.submittedAt ? ` ・ ${new Date(s.submittedAt).toLocaleString("ja-JP")}` : ""}
+          <li
+            key={s.id}
+            className="card"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              fontSize: "0.9rem",
+              cursor: "pointer",
+            }}
+            onClick={() => handleOpen(s)}
+          >
+            <span>
+              {s.fileName}
+              <span className="muted" style={{ marginLeft: "0.75rem", fontSize: "0.8rem" }}>
+                {s.format.toUpperCase()}
+                {s.locked ? " ・ 非公開" : ""}
+                {s.submittedAt ? ` ・ ${new Date(s.submittedAt).toLocaleString("ja-JP")}` : ""}
+              </span>
+            </span>
+            <span className="button-outline" style={{ pointerEvents: "none" }}>
+              {openingId === s.id ? "開いています…" : "開く"}
             </span>
           </li>
         ))}

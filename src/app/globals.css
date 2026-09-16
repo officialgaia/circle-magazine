@@ -1,21 +1,32 @@
 @import "tailwindcss";
 
 /* =============================================================
-   機関誌にふさわしい、落ち着いた編集・印刷寄りの誌面。
-   彩度を抑えた配色、過度な角丸・影・光沢は使わない。
+   機関誌にふさわしい、落ち着いた誌面をベースにしつつ、
+   現代的なUIパターン(適度な角丸・陰影・インタラクション)で
+   古さを感じさせない見た目にする。彩度は抑えたまま。
    ============================================================= */
 :root {
-  --background: #f6f4ee;
-  --surface: #fffdf9;
-  --border: #ded7c6;
-  --foreground: #262218;
-  --muted: #736c5c;
+  --background: #f5f3ee;
+  --surface: #ffffff;
+  --surface-muted: #faf8f3;
+  --border: #e4ddcf;
+  --border-strong: #cfc6b2;
+  --foreground: #211e17;
+  --muted: #726b5a;
   --line: #b9b09a;
-  --accent: #5b5340;
-  --accent-soft: #8a8168;
-  --status-open: #4c5a45;
-  --status-editing: #7a5a2f;
-  --status-published: #3a4a63;
+  --accent: #3d3626;
+  --accent-soft: #6b6350;
+  --status-open: #3c6b46;
+  --status-open-bg: #e7f0e8;
+  --status-editing: #93641f;
+  --status-editing-bg: #f7edd9;
+  --status-published: #2f4f78;
+  --status-published-bg: #e6edf5;
+  --danger: #a2402f;
+  --shadow-sm: 0 1px 2px rgba(33, 30, 23, 0.06);
+  --shadow-md: 0 4px 16px rgba(33, 30, 23, 0.08);
+  --radius: 10px;
+  --radius-sm: 6px;
 }
 
 @theme inline {
@@ -27,11 +38,17 @@
   --color-accent: var(--accent);
 }
 
+* {
+  box-sizing: border-box;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), -apple-system, "Hiragino Kaku Gothic ProN",
     "Hiragino Sans", Meiryo, sans-serif;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1,
@@ -39,76 +56,108 @@ h2,
 h3 {
   font-family: var(--font-serif), "Hiragino Mincho ProN", serif;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.015em;
+  color: var(--accent);
+}
+
+a {
+  color: inherit;
 }
 
 .container {
-  max-width: 44rem;
+  max-width: 46rem;
   margin: 0 auto;
-  padding: 0 1.25rem;
+  padding: 0 1.5rem;
 }
 
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(10px);
 }
 
 .header-inner {
-  max-width: 44rem;
+  max-width: 46rem;
   margin: 0 auto;
-  padding: 1.1rem 1.25rem;
+  padding: 1rem 1.5rem;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
 .title {
   font-family: var(--font-serif), "Hiragino Mincho ProN", serif;
-  font-size: 1.15rem;
-  letter-spacing: 0.06em;
+  font-size: 1.1rem;
+  letter-spacing: 0.05em;
+  color: var(--accent);
 }
 
 .nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  font-size: 0.85rem;
+  align-items: center;
+  gap: 0.35rem 1.25rem;
+  font-size: 0.86rem;
 }
 
 .nav a {
   color: var(--muted);
   text-decoration: none;
-  border-bottom: 1px solid transparent;
-  padding-bottom: 2px;
+  padding-bottom: 3px;
+  border-bottom: 1.5px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 .nav a:hover,
 .nav a[data-active="true"] {
-  color: var(--foreground);
-  border-bottom-color: var(--line);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 1.25rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1.35rem;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+a.card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
 }
 
 .button {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border: 1px solid var(--foreground);
-  background: var(--foreground);
-  color: var(--background);
-  padding: 0.5rem 1.1rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 1.2rem;
   font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .button:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -116,66 +165,107 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border: 1px solid var(--line);
-  background: transparent;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
   color: var(--foreground);
-  padding: 0.45rem 1rem;
+  border-radius: var(--radius-sm);
+  padding: 0.48rem 1rem;
   font-size: 0.85rem;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.button-outline:hover:not(:disabled) {
+  background: var(--surface-muted);
+  border-color: var(--accent);
 }
 
 .button-outline:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .input {
-  border: 1px solid var(--line);
+  border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--foreground);
-  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.7rem;
   font-size: 0.9rem;
   width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .label {
-  font-size: 0.78rem;
+  display: block;
+  font-size: 0.76rem;
   color: var(--muted);
   letter-spacing: 0.04em;
 }
 
 .table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.table th {
+  background: var(--surface-muted);
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
 }
 
 .table th,
 .table td {
   border-bottom: 1px solid var(--border);
-  padding: 0.6rem 0.5rem;
+  padding: 0.7rem 0.85rem;
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: color-mix(in srgb, var(--surface-muted) 60%, transparent);
 }
 
 .status {
   display: inline-block;
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
-  padding: 0.15rem 0.55rem;
-  border: 1px solid currentColor;
+  font-size: 0.74rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
 }
 
 .status[data-status="受付中"] {
   color: var(--status-open);
+  background: var(--status-open-bg);
 }
 
 .status[data-status="編集中"] {
   color: var(--status-editing);
+  background: var(--status-editing-bg);
 }
 
 .status[data-status="公開"] {
   color: var(--status-published);
+  background: var(--status-published-bg);
 }
 
 .muted {

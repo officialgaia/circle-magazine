@@ -25,9 +25,19 @@ service firebase.storage {
       allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
     }
 
-    // 完成した冊子セクションのPDF。閲覧はメンバー全員、更新は管理者のみ。
-    match /issues/{issueId}/booklet/{fileName} {
-      allow read: if isSignedIn();
+    // 完成した冊子セクションのPDF。セクションIDでフォルダを分け、
+    // Firestore側のドキュメント(locked / ownerEmail)を参照して、
+    // 非公開セクションのファイルは投稿者本人と管理者にしか読めないようにする。
+    match /issues/{issueId}/booklet/{sectionId}/{fileName} {
+      function section() {
+        return firestore.get(
+          /databases/(default)/documents/issues/$(issueId)/booklet/$(sectionId)
+        ).data;
+      }
+
+      allow read: if isAdmin() ||
+        (isSignedIn() && section().locked == false) ||
+        (isSignedIn() && section().ownerEmail == request.auth.token.email);
       allow write: if isAdmin() &&
         request.resource.size < 50 * 1024 * 1024 &&
         request.resource.contentType == 'application/pdf';

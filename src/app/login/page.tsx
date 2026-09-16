@@ -46,7 +46,7 @@ export default function LoginPage() {
           {submitting ? "サインイン中…" : "Googleでサインイン"}
         </button>
         {error && (
-          <p style={{ color: "#8a3a2f", fontSize: "0.85rem", marginTop: "1rem" }}>
+          <p style={{ color: "var(--danger)", fontSize: "0.85rem", marginTop: "1rem" }}>
             {error}
           </p>
         )}

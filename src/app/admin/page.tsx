@@ -48,7 +48,7 @@ function AdminOverviewInner() {
   return (
     <div>
       <h1 style={{ fontSize: "1.4rem", marginBottom: "1.5rem" }}>管理者画面</h1>
-      {error && <p style={{ color: "#8a3a2f", fontSize: "0.9rem" }}>{error}</p>}
+      {error && <p style={{ color: "var(--danger)", fontSize: "0.9rem" }}>{error}</p>}
 
       <section className="card" style={{ marginBottom: "1.5rem" }}>
         <h2 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>新年度号の作成</h2>
