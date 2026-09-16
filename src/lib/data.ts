@@ -372,17 +372,6 @@ export async function updateRosterMemberByAdmin(
   await updateDoc(doc(db, "issues", issueId, "roster", rosterId), input);
 }
 
-// 別の端末で選び直したい場合や、認証がうまく引き継がれなかった場合の
-// 復旧用に、管理者が「自分の行」の選択を解除できるようにする。
-export async function resetRosterClaim(
-  issueId: string,
-  rosterId: string,
-): Promise<void> {
-  await updateDoc(doc(db, "issues", issueId, "roster", rosterId), {
-    claimedByUid: null,
-  });
-}
-
 export async function deleteRosterMember(
   issueId: string,
   rosterId: string,
