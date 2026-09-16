@@ -1,0 +1,58 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email in
+          get(/databases/$(database)/documents/config/adminEmails).data.adminEmails;
+    }
+
+    // 管理者メール一覧。閲覧はログインユーザーのみ、書き込みは
+    // コンソール／サーバー側から直接行う運用とし、クライアントからは変更不可にする。
+    match /config/adminEmails {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /issues/{issueId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+
+      // 投稿された生ファイルの情報。本人と管理者のみ閲覧できる。
+      match /submissions/{submissionId} {
+        allow read: if isAdmin() ||
+          (isSignedIn() && resource.data.submitterEmail == request.auth.token.email);
+        allow create: if isSignedIn() &&
+          request.resource.data.submitterEmail == request.auth.token.email &&
+          request.resource.data.submitterUid == request.auth.uid &&
+          request.resource.data.format in ['pdf', 'docx'];
+        allow update, delete: if isAdmin();
+      }
+
+      // 完成した冊子セクション。閲覧はメンバー全員、編集は管理者のみ。
+      match /booklet/{sectionId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
+
+      // 名簿。閲覧はメンバー全員。本人は note と submitted のみ更新可能。
+      match /roster/{rosterId} {
+        allow read: if isSignedIn();
+        allow create, delete: if isAdmin();
+        allow update: if isAdmin() || (
+          isSignedIn() &&
+          resource.data.email == request.auth.token.email &&
+          request.resource.data.name == resource.data.name &&
+          request.resource.data.email == resource.data.email &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['note', 'submitted'])
+        );
+      }
+    }
+  }
+}

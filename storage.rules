@@ -1,0 +1,41 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        firestore.get(/databases/(default)/documents/config/adminEmails)
+          .data.adminEmails.hasAny([request.auth.token.email]);
+    }
+
+    // 投稿された生ファイル。アップロード者本人のUIDでフォルダを分け、
+    // 本人と管理者のみ読み書きできるようにする(他人の生ファイルはDL不可)。
+    match /issues/{issueId}/submissions/{uid}/{fileName} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.size < 20 * 1024 * 1024 &&
+        request.resource.contentType.matches(
+          'application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document'
+        );
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+    }
+
+    // 完成した冊子セクションのPDF。閲覧はメンバー全員、更新は管理者のみ。
+    match /issues/{issueId}/booklet/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() &&
+        request.resource.size < 50 * 1024 * 1024 &&
+        request.resource.contentType == 'application/pdf';
+      allow delete: if isAdmin();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

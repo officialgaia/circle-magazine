@@ -1,0 +1,320 @@
+"use client";
+
+import { useEffect, useState, type FormEvent } from "react";
+import { useParams } from "next/navigation";
+import { RequireAuth } from "@/components/RequireAuth";
+import {
+  addBookletSection,
+  addRosterMember,
+  deleteBookletSection,
+  deleteRosterMember,
+  getSubmissionDownloadUrl,
+  listBookletSections,
+  listRoster,
+  listSubmissions,
+  updateBookletSectionOrder,
+  updateRosterMemberByAdmin,
+} from "@/lib/data";
+import type { BookletSection, RosterEntry, Submission } from "@/lib/types";
+
+function SubmissionsPanel({ issueId }: { issueId: string }) {
+  const [submissions, setSubmissions] = useState<Submission[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function refresh() {
+    listSubmissions(issueId).then(setSubmissions).catch(() => setError("投稿一覧を取得できませんでした。"));
+  }
+  useEffect(refresh, [issueId]);
+
+  async function handleDownload(storagePath: string) {
+    try {
+      const url = await getSubmissionDownloadUrl(storagePath);
+      window.open(url, "_blank", "noreferrer");
+    } catch {
+      setError("ファイルの取得に失敗しました。");
+    }
+  }
+
+  return (
+    <section className="card" style={{ marginBottom: "1.5rem" }}>
+      <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>投稿された生ファイル</h3>
+      {error && <p style={{ color: "#8a3a2f", fontSize: "0.85rem" }}>{error}</p>}
+      {submissions === null && <p className="muted" style={{ fontSize: "0.85rem" }}>読み込み中…</p>}
+      {submissions !== null && submissions.length === 0 && (
+        <p className="muted" style={{ fontSize: "0.85rem" }}>まだ投稿はありません。</p>
+      )}
+      <ul style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {submissions?.map((s) => (
+          <li
+            key={s.id}
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.9rem" }}
+          >
+            <span>
+              {s.submitterName} — {s.fileName}
+              <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.78rem" }}>
+                {s.format.toUpperCase()}
+              </span>
+            </span>
+            <button type="button" className="button-outline" onClick={() => handleDownload(s.storagePath)}>
+              ダウンロード
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function BookletPanel({ issueId }: { issueId: string }) {
+  const [sections, setSections] = useState<BookletSection[] | null>(null);
+  const [title, setTitle] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function refresh() {
+    listBookletSections(issueId).then(setSections).catch(() => setError("セクション一覧を取得できませんでした。"));
+  }
+  useEffect(refresh, [issueId]);
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault();
+    if (!title || !file) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const nextOrder = (sections?.reduce((max, s) => Math.max(max, s.order), 0) ?? 0) + 1;
+      await addBookletSection({ issueId, title, file, order: nextOrder });
+      setTitle("");
+      setFile(null);
+      const input = document.getElementById("booklet-file") as HTMLInputElement | null;
+      if (input) input.value = "";
+      refresh();
+    } catch {
+      setError("セクションの追加に失敗しました。");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleMove(section: BookletSection, direction: -1 | 1) {
+    if (!sections) return;
+    const sorted = [...sections].sort((a, b) => a.order - b.order);
+    const index = sorted.findIndex((s) => s.id === section.id);
+    const swapWith = sorted[index + direction];
+    if (!swapWith) return;
+    setError(null);
+    try {
+      await Promise.all([
+        updateBookletSectionOrder(issueId, section.id, swapWith.order),
+        updateBookletSectionOrder(issueId, swapWith.id, section.order),
+      ]);
+      refresh();
+    } catch {
+      setError("並び替えに失敗しました。");
+    }
+  }
+
+  async function handleDelete(section: BookletSection) {
+    setError(null);
+    try {
+      await deleteBookletSection(issueId, section.id, section.pdfStoragePath);
+      refresh();
+    } catch {
+      setError("削除に失敗しました。");
+    }
+  }
+
+  return (
+    <section className="card" style={{ marginBottom: "1.5rem" }}>
+      <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>冊子セクション</h3>
+      {error && <p style={{ color: "#8a3a2f", fontSize: "0.85rem" }}>{error}</p>}
+
+      <ul style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.25rem" }}>
+        {sections?.map((section, i) => (
+          <li
+            key={section.id}
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.9rem" }}
+          >
+            <span>
+              <span className="muted" style={{ marginRight: "0.5rem" }}>{i + 1}.</span>
+              {section.title}
+            </span>
+            <span style={{ display: "flex", gap: "0.4rem" }}>
+              <button type="button" className="button-outline" onClick={() => handleMove(section, -1)}>
+                上へ
+              </button>
+              <button type="button" className="button-outline" onClick={() => handleMove(section, 1)}>
+                下へ
+              </button>
+              <button type="button" className="button-outline" onClick={() => handleDelete(section)}>
+                削除
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <form onSubmit={handleAdd} style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+        <div>
+          <label className="label" htmlFor="booklet-title">セクション名</label>
+          <input
+            id="booklet-title"
+            className="input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            style={{ marginTop: "0.3rem" }}
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="booklet-file">PDFファイル</label>
+          <input
+            id="booklet-file"
+            className="input"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            style={{ marginTop: "0.3rem" }}
+          />
+        </div>
+        <div>
+          <button type="submit" className="button" disabled={!title || !file || submitting}>
+            {submitting ? "追加中…" : "セクションを追加"}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function RosterPanel({ issueId }: { issueId: string }) {
+  const [roster, setRoster] = useState<RosterEntry[] | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function refresh() {
+    listRoster(issueId).then(setRoster).catch(() => setError("名簿を取得できませんでした。"));
+  }
+  useEffect(refresh, [issueId]);
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault();
+    if (!name || !email) return;
+    try {
+      await addRosterMember(issueId, { name, email });
+      setName("");
+      setEmail("");
+      refresh();
+    } catch {
+      setError("メンバーの追加に失敗しました。");
+    }
+  }
+
+  async function handleFieldChange(entry: RosterEntry, patch: Partial<RosterEntry>) {
+    try {
+      await updateRosterMemberByAdmin(issueId, entry.id, {
+        name: patch.name ?? entry.name,
+        email: patch.email ?? entry.email,
+        submitted: patch.submitted ?? entry.submitted,
+        note: patch.note ?? entry.note,
+      });
+      refresh();
+    } catch {
+      setError("更新に失敗しました。");
+    }
+  }
+
+  async function handleDelete(entry: RosterEntry) {
+    try {
+      await deleteRosterMember(issueId, entry.id);
+      refresh();
+    } catch {
+      setError("削除に失敗しました。");
+    }
+  }
+
+  return (
+    <section className="card">
+      <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>名簿の管理</h3>
+      {error && <p style={{ color: "#8a3a2f", fontSize: "0.85rem" }}>{error}</p>}
+
+      <table className="table" style={{ marginBottom: "1.25rem" }}>
+        <thead>
+          <tr>
+            <th>名前</th>
+            <th>メール</th>
+            <th>提出</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {roster?.map((entry) => (
+            <tr key={entry.id}>
+              <td>
+                <input
+                  className="input"
+                  defaultValue={entry.name}
+                  onBlur={(e) => handleFieldChange(entry, { name: e.target.value })}
+                />
+              </td>
+              <td>
+                <input
+                  className="input"
+                  defaultValue={entry.email}
+                  onBlur={(e) => handleFieldChange(entry, { email: e.target.value })}
+                />
+              </td>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={entry.submitted}
+                  onChange={(e) => handleFieldChange(entry, { submitted: e.target.checked })}
+                />
+              </td>
+              <td>
+                <button type="button" className="button-outline" onClick={() => handleDelete(entry)}>
+                  削除
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <form onSubmit={handleAdd} style={{ display: "flex", gap: "0.6rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div>
+          <label className="label" htmlFor="roster-name">名前</label>
+          <input id="roster-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor="roster-email">メール</label>
+          <input id="roster-email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        <button type="submit" className="button" disabled={!name || !email}>
+          追加
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function IssueAdminInner({ issueId }: { issueId: string }) {
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.15rem", marginBottom: "1.25rem" }}>号の管理</h2>
+      <SubmissionsPanel issueId={issueId} />
+      <BookletPanel issueId={issueId} />
+      <RosterPanel issueId={issueId} />
+    </div>
+  );
+}
+
+export default function IssueAdminPage() {
+  const params = useParams<{ issueId: string }>();
+  return (
+    <RequireAuth requireAdmin>
+      <IssueAdminInner issueId={params.issueId} />
+    </RequireAuth>
+  );
+}
