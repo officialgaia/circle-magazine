@@ -36,10 +36,12 @@ service cloud.firestore {
         allow create: if isSignedIn() &&
           request.resource.data.submitterUid == request.auth.uid &&
           request.resource.data.format in ['pdf', 'docx'];
-        allow update: if isSignedIn() &&
+        allow update: if isAdmin() || (
+          isSignedIn() &&
           resource.data.submitterUid == request.auth.uid &&
           request.resource.data.submitterUid == request.auth.uid &&
-          request.resource.data.format in ['pdf', 'docx'];
+          request.resource.data.format in ['pdf', 'docx']
+        );
         allow delete: if isAdmin();
       }
 

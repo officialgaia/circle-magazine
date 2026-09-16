@@ -18,6 +18,7 @@ export interface Submission {
   storagePath: string;
   submittedAt: number | null;
   locked: boolean;
+  downloadedByAdmin: boolean;
 }
 
 export interface BookletSection {

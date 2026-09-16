@@ -15,7 +15,7 @@ import type { RosterEntry, Submission } from "@/lib/types";
 export default function SubmitPage() {
   const params = useParams<{ issueId: string }>();
   const issueId = params.issueId;
-  const { user, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
 
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [claiming, setClaiming] = useState<string | null>(null);
@@ -47,11 +47,11 @@ export default function SubmitPage() {
   }
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || isAdmin) return;
     refreshRoster();
     refreshSubmission();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [issueId, authLoading, user?.uid]);
+  }, [issueId, authLoading, isAdmin, user?.uid]);
 
   const myEntry = roster?.find((r) => r.claimedByUid === user?.uid) ?? null;
 
@@ -96,6 +96,17 @@ export default function SubmitPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (isAdmin) {
+    return (
+      <div>
+        <h2 style={{ fontSize: "1.15rem", marginBottom: "1rem" }}>原稿の投稿</h2>
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          管理者アカウントでは投稿できません。投稿されたファイルの確認は管理画面から行ってください。
+        </p>
+      </div>
+    );
   }
 
   if (roster !== null && !myEntry) {

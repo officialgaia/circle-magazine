@@ -9,7 +9,7 @@ import type { RosterEntry } from "@/lib/types";
 export default function RosterPage() {
   const params = useParams<{ issueId: string }>();
   const issueId = params.issueId;
-  const { user, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
 
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export default function RosterPage() {
         <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>
       )}
 
-      {roster !== null && !myEntry && (
+      {roster !== null && !myEntry && !isAdmin && (
         <p className="muted" style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
           自分の名前の行の「これは自分です」を押すと、以降このブラウザで自分の欄として提出状況の確認ができるようになります。
         </p>
@@ -78,7 +78,7 @@ export default function RosterPage() {
                   <td>
                     {isMine ? (
                       <span className="muted" style={{ fontSize: "0.8rem" }}>自分</span>
-                    ) : !myEntry && !entry.claimedByUid ? (
+                    ) : !myEntry && !entry.claimedByUid && !isAdmin ? (
                       <button
                         type="button"
                         className="button-outline"

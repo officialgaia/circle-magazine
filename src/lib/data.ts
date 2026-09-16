@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import {
   deleteObject,
+  getBytes,
   getDownloadURL,
   ref,
   uploadBytes,
@@ -118,6 +119,7 @@ function toSubmission(id: string, data: Record<string, unknown>): Submission {
     storagePath: data.storagePath as string,
     submittedAt: submittedAt ? submittedAt.toMillis() : null,
     locked: Boolean(data.locked),
+    downloadedByAdmin: Boolean(data.downloadedByAdmin),
   };
 }
 
@@ -178,6 +180,7 @@ export async function createSubmission(params: {
     storagePath,
     submittedAt: serverTimestamp(),
     locked,
+    downloadedByAdmin: false,
   });
 
   await updateDoc(doc(db, "issues", issueId, "roster", rosterId), {
@@ -189,6 +192,34 @@ export async function getSubmissionDownloadUrl(
   storagePath: string,
 ): Promise<string> {
   return getDownloadURL(ref(storage, storagePath));
+}
+
+// 管理者専用。投稿ファイルは閲覧用(inline)でアップロードしているため、
+// 単純にリンクを踏むだけでは(ブラウザやファイル形式によっては)開くだけに
+// なってしまう。SDK でファイルの中身を取得し、ブラウザ内でBlobとして
+// ダウンロードさせることで、確実に保存ダイアログを出す。
+export async function downloadSubmissionFile(
+  storagePath: string,
+  fileName: string,
+): Promise<void> {
+  const bytes = await getBytes(ref(storage, storagePath));
+  const blobUrl = URL.createObjectURL(new Blob([bytes]));
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(blobUrl);
+}
+
+export async function markSubmissionDownloaded(
+  issueId: string,
+  submissionId: string,
+): Promise<void> {
+  await updateDoc(doc(db, "issues", issueId, "submissions", submissionId), {
+    downloadedByAdmin: true,
+  });
 }
 
 // ----- 冊子セクション -----

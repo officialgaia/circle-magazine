@@ -8,10 +8,11 @@ import {
   addRosterMember,
   deleteBookletSection,
   deleteRosterMember,
-  getSubmissionDownloadUrl,
+  downloadSubmissionFile,
   listBookletSections,
   listRoster,
   listSubmissions,
+  markSubmissionDownloaded,
   updateBookletSectionOrder,
   updateRosterMemberByAdmin,
 } from "@/lib/data";
@@ -19,30 +20,37 @@ import { GRADE_OPTIONS, type BookletSection, type Grade, type RosterEntry, type 
 
 function SubmissionsPanel({ issueId }: { issueId: string }) {
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
-  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
     listSubmissions(issueId)
-      .then(async (list) => {
-        setSubmissions(list);
-        const entries = await Promise.all(
-          list.map(async (s) => {
-            const url = await getSubmissionDownloadUrl(s.storagePath);
-            return [s.id, url] as const;
-          }),
-        );
-        setUrls(Object.fromEntries(entries));
-      })
+      .then(setSubmissions)
       .catch(() => setError("投稿一覧を取得できませんでした。"));
   }
   useEffect(refresh, [issueId]);
+
+  async function handleDownload(s: Submission) {
+    setDownloadingId(s.id);
+    setError(null);
+    try {
+      await downloadSubmissionFile(s.storagePath, s.fileName);
+      if (!s.downloadedByAdmin) {
+        await markSubmissionDownloaded(issueId, s.id);
+        refresh();
+      }
+    } catch {
+      setError("ダウンロードに失敗しました。");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   return (
     <section className="card" style={{ marginBottom: "1.5rem" }}>
       <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>投稿された生ファイル</h3>
       <p className="muted" style={{ fontSize: "0.78rem", marginBottom: "0.75rem" }}>
-        投稿は1人1件までです(再投稿すると前回分と置き換わります)。
+        投稿は1人1件までです(再投稿すると前回分と置き換わります)。まだダウンロードしていないものは色を変えて示しています。
       </p>
       {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
       {submissions === null && <p className="muted" style={{ fontSize: "0.85rem" }}>読み込み中…</p>}
@@ -53,22 +61,34 @@ function SubmissionsPanel({ issueId }: { issueId: string }) {
         {submissions?.map((s) => (
           <li
             key={s.id}
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.9rem" }}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              fontSize: "0.9rem",
+              padding: "0.5rem 0.7rem",
+              borderRadius: "var(--radius-sm)",
+              background: s.downloadedByAdmin ? "transparent" : "var(--status-editing-bg)",
+            }}
           >
             <span>
               {s.submitterName} — {s.fileName}
               <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.78rem" }}>
                 {s.format.toUpperCase()}
                 {s.locked ? " ・ 非公開" : ""}
+                {!s.downloadedByAdmin && (
+                  <span style={{ color: "var(--status-editing)", marginLeft: "0.5rem" }}>・ 未ダウンロード</span>
+                )}
               </span>
             </span>
-            {urls[s.id] ? (
-              <a href={urls[s.id]} download={s.fileName} className="button-outline">
-                ダウンロード
-              </a>
-            ) : (
-              <span className="muted" style={{ fontSize: "0.8rem" }}>取得中…</span>
-            )}
+            <button
+              type="button"
+              className="button-outline"
+              disabled={downloadingId === s.id}
+              onClick={() => handleDownload(s)}
+            >
+              {downloadingId === s.id ? "ダウンロード中…" : "ダウンロード"}
+            </button>
           </li>
         ))}
       </ul>
