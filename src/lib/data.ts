@@ -46,14 +46,8 @@ function rosterCol(issueId: string) {
   return collection(db, "issues", issueId, "roster");
 }
 
-// ブラウザでの直接ダウンロード(新規タブで開かず保存ダイアログになる)を
-// 強制するため、Content-Dispositionヘッダーを付けてアップロードする。
-// 投稿された生ファイルは「ダウンロードするもの」なので attachment、
-// 冊子PDFは「その場で読むもの」なので inline にする。
-function attachmentDisposition(fileName: string): string {
-  return `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`;
-}
-
+// ブラウザでその場で開いて閲覧できるよう、Content-Dispositionを
+// inline にしてアップロードする(ダウンロードしたい場合は<a download>側で指定する)。
 function inlineDisposition(fileName: string): string {
   return `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
@@ -149,7 +143,7 @@ export async function createSubmission(params: {
 
   await uploadBytes(ref(storage, storagePath), file, {
     contentType: file.type,
-    contentDisposition: attachmentDisposition(file.name),
+    contentDisposition: inlineDisposition(file.name),
   });
 
   await setDoc(existingRef, {
@@ -171,19 +165,6 @@ export async function getSubmissionDownloadUrl(
   storagePath: string,
 ): Promise<string> {
   return getDownloadURL(ref(storage, storagePath));
-}
-
-// 管理者専用。旧仕様(1人複数件を許可していた時代)のデータ整理など、
-// 投稿を削除できるようにする。
-export async function deleteSubmission(
-  issueId: string,
-  submissionId: string,
-  storagePath: string,
-): Promise<void> {
-  await deleteDoc(doc(db, "issues", issueId, "submissions", submissionId));
-  await deleteObject(ref(storage, storagePath)).catch(() => {
-    // ストレージ側に既に無ければ無視
-  });
 }
 
 // ----- 冊子セクション -----

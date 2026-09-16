@@ -177,7 +177,7 @@ export default function SubmitPage() {
 
       <h3 style={{ fontSize: "1rem", margin: "1.75rem 0 0.75rem" }}>自分の投稿</h3>
       <p className="muted" style={{ fontSize: "0.8rem", marginBottom: "0.75rem" }}>
-        今投稿している原稿は、いつでもここからダウンロードして確認できます。他のメンバーからは見えません。
+        今投稿している原稿は、いつでもここから確認できます。他のメンバーからは見えません。
       </p>
       {mySubmission === undefined && <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>}
       {mySubmission === null && (
@@ -199,8 +199,8 @@ export default function SubmitPage() {
             </span>
           </span>
           {myUrl ? (
-            <a href={myUrl} download={mySubmission.fileName} className="button-outline">
-              ダウンロード
+            <a href={myUrl} target="_blank" rel="noreferrer" className="button-outline">
+              閲覧する
             </a>
           ) : (
             <span className="muted" style={{ fontSize: "0.8rem" }}>取得中…</span>

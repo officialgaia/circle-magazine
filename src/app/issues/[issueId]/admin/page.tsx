@@ -8,7 +8,6 @@ import {
   addRosterMember,
   deleteBookletSection,
   deleteRosterMember,
-  deleteSubmission,
   getSubmissionDownloadUrl,
   listBookletSections,
   listRoster,
@@ -39,16 +38,6 @@ function SubmissionsPanel({ issueId }: { issueId: string }) {
   }
   useEffect(refresh, [issueId]);
 
-  async function handleDelete(s: Submission) {
-    setError(null);
-    try {
-      await deleteSubmission(issueId, s.id, s.storagePath);
-      refresh();
-    } catch {
-      setError("削除に失敗しました。");
-    }
-  }
-
   return (
     <section className="card" style={{ marginBottom: "1.5rem" }}>
       <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>投稿された生ファイル</h3>
@@ -73,18 +62,13 @@ function SubmissionsPanel({ issueId }: { issueId: string }) {
                 {s.locked ? " ・ 非公開" : ""}
               </span>
             </span>
-            <span style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-              {urls[s.id] ? (
-                <a href={urls[s.id]} download={s.fileName} className="button-outline">
-                  ダウンロード
-                </a>
-              ) : (
-                <span className="muted" style={{ fontSize: "0.8rem" }}>取得中…</span>
-              )}
-              <button type="button" className="button-outline" onClick={() => handleDelete(s)}>
-                削除
-              </button>
-            </span>
+            {urls[s.id] ? (
+              <a href={urls[s.id]} download={s.fileName} className="button-outline">
+                ダウンロード
+              </a>
+            ) : (
+              <span className="muted" style={{ fontSize: "0.8rem" }}>取得中…</span>
+            )}
           </li>
         ))}
       </ul>
@@ -328,13 +312,7 @@ function RosterPanel({ issueId }: { issueId: string }) {
                   ))}
                 </select>
               </td>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={entry.submitted}
-                  onChange={(e) => handleFieldChange(entry, { submitted: e.target.checked })}
-                />
-              </td>
+              <td>{entry.submitted ? "提出済み" : "未提出"}</td>
               <td>
                 <button type="button" className="button-outline" onClick={() => handleDelete(entry)}>
                   削除

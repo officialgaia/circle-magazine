@@ -15,6 +15,7 @@ export function Header() {
         {!loading && (
           <nav className="nav items-center">
             <Link href="/">年度一覧</Link>
+            <Link href="/about">このサイトについて</Link>
             {isAdmin ? (
               <>
                 <Link href="/admin">管理</Link>
