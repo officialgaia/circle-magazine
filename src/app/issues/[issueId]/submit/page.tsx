@@ -189,7 +189,7 @@ export default function SubmitPage() {
           </span>
           {myUrl ? (
             <a href={myUrl} target="_blank" rel="noreferrer" className="button-outline">
-              閲覧する
+              閲覧
             </a>
           ) : (
             <span className="muted" style={{ fontSize: "0.8rem" }}>取得中…</span>

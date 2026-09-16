@@ -77,7 +77,7 @@ export default function BookletViewerPage() {
                   className="button-outline"
                   style={{ flexShrink: 0 }}
                 >
-                  閲覧する
+                  閲覧
                 </a>
               )}
             </div>
