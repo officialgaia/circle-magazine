@@ -19,11 +19,14 @@ export default function BookletViewerPage() {
     listBookletSections(issueId, { isAdmin, uid: user?.uid ?? null })
       .then(async (list) => {
         setSections(list);
+        // 非公開のセクションはそもそも閲覧ボタンを出さないため、URL取得も不要。
         const entries = await Promise.all(
-          list.map(async (section) => {
-            const url = await getBookletFileUrl(section.pdfStoragePath);
-            return [section.id, url] as const;
-          }),
+          list
+            .filter((section) => !section.locked)
+            .map(async (section) => {
+              const url = await getBookletFileUrl(section.pdfStoragePath);
+              return [section.id, url] as const;
+            }),
         );
         setUrls(Object.fromEntries(entries));
       })

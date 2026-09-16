@@ -173,6 +173,19 @@ export async function getSubmissionDownloadUrl(
   return getDownloadURL(ref(storage, storagePath));
 }
 
+// 管理者専用。旧仕様(1人複数件を許可していた時代)のデータ整理など、
+// 投稿を削除できるようにする。
+export async function deleteSubmission(
+  issueId: string,
+  submissionId: string,
+  storagePath: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "issues", issueId, "submissions", submissionId));
+  await deleteObject(ref(storage, storagePath)).catch(() => {
+    // ストレージ側に既に無ければ無視
+  });
+}
+
 // ----- 冊子セクション -----
 
 function toBookletSection(id: string, data: Record<string, unknown>): BookletSection {
