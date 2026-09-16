@@ -27,14 +27,20 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
 
-      // 投稿された生ファイルの情報。本人(submitterUid)と管理者のみ閲覧できる。
+      // 投稿された生ファイルの情報。1人1件まで(ドキュメントID=投稿者のuid)。
+      // 本人(submitterUid)と管理者のみ閲覧できる。再投稿は自分の既存分の
+      // 上書き(update)としてのみ許可し、他人の分は書き換えられない。
       match /submissions/{submissionId} {
         allow read: if isAdmin() ||
           (isSignedIn() && resource.data.submitterUid == request.auth.uid);
         allow create: if isSignedIn() &&
           request.resource.data.submitterUid == request.auth.uid &&
           request.resource.data.format in ['pdf', 'docx'];
-        allow update, delete: if isAdmin();
+        allow update: if isSignedIn() &&
+          resource.data.submitterUid == request.auth.uid &&
+          request.resource.data.submitterUid == request.auth.uid &&
+          request.resource.data.format in ['pdf', 'docx'];
+        allow delete: if isAdmin();
       }
 
       // 完成した冊子セクション。非公開(locked)のセクションは、

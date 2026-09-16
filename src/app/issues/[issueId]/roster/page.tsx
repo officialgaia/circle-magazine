@@ -78,16 +78,16 @@ export default function RosterPage() {
                   <td>
                     {isMine ? (
                       <span className="muted" style={{ fontSize: "0.8rem" }}>自分</span>
-                    ) : entry.claimedByUid ? null : (
+                    ) : !myEntry && !entry.claimedByUid ? (
                       <button
                         type="button"
                         className="button-outline"
-                        disabled={!!myEntry || claiming === entry.id}
+                        disabled={claiming === entry.id}
                         onClick={() => handleClaim(entry.id)}
                       >
                         これは自分です
                       </button>
-                    )}
+                    ) : null}
                   </td>
                 </tr>
               );

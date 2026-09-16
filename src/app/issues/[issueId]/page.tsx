@@ -69,12 +69,12 @@ export default function BookletViewerPage() {
               {urls[section.id] && (
                 <a
                   href={urls[section.id]}
-                  download={section.fileName}
+                  target="_blank"
                   rel="noreferrer"
                   className="button-outline"
                   style={{ flexShrink: 0 }}
                 >
-                  ダウンロード
+                  閲覧する
                 </a>
               )}
             </div>

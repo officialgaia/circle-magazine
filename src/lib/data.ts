@@ -48,8 +48,14 @@ function rosterCol(issueId: string) {
 
 // ブラウザでの直接ダウンロード(新規タブで開かず保存ダイアログになる)を
 // 強制するため、Content-Dispositionヘッダーを付けてアップロードする。
+// 投稿された生ファイルは「ダウンロードするもの」なので attachment、
+// 冊子PDFは「その場で読むもの」なので inline にする。
 function attachmentDisposition(fileName: string): string {
   return `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
+function inlineDisposition(fileName: string): string {
+  return `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
 // ----- 号 -----
@@ -97,7 +103,7 @@ function toSubmission(id: string, data: Record<string, unknown>): Submission {
   };
 }
 
-// 管理者専用。号内の全投稿を一覧する。
+// 管理者専用。号内の投稿を一覧する(1人1件までしか存在しない)。
 export async function listSubmissions(issueId: string): Promise<Submission[]> {
   const snap = await getDocs(
     query(submissionsCol(issueId), orderBy("submittedAt", "desc")),
@@ -105,19 +111,17 @@ export async function listSubmissions(issueId: string): Promise<Submission[]> {
   return snap.docs.map((d) => toSubmission(d.id, d.data()));
 }
 
-// 自分(このブラウザ)が投稿したものだけを取得する。
-export async function listMySubmissions(
+// 自分(このブラウザ)が今投稿しているものを取得する。1人1件までなので
+// ドキュメントIDをuidに固定しており、直接取得できる。
+export async function getMySubmission(
   issueId: string,
   uid: string,
-): Promise<Submission[]> {
-  const snap = await getDocs(
-    query(submissionsCol(issueId), where("submitterUid", "==", uid)),
-  );
-  return snap.docs
-    .map((d) => toSubmission(d.id, d.data()))
-    .sort((a, b) => (b.submittedAt ?? 0) - (a.submittedAt ?? 0));
+): Promise<Submission | null> {
+  const snap = await getDoc(doc(submissionsCol(issueId), uid));
+  return snap.exists() ? toSubmission(snap.id, snap.data()) : null;
 }
 
+// 1人につき投稿は1件までとし、再投稿すると前回分を置き換える。
 export async function createSubmission(params: {
   issueId: string;
   uid: string;
@@ -130,14 +134,25 @@ export async function createSubmission(params: {
   const format: SubmissionFormat = file.name.toLowerCase().endsWith(".pdf")
     ? "pdf"
     : "docx";
-  const storagePath = `issues/${issueId}/submissions/${uid}/${Date.now()}_${file.name}`;
+  const storagePath = `issues/${issueId}/submissions/${uid}/${file.name}`;
+
+  const existingRef = doc(submissionsCol(issueId), uid);
+  const existing = await getDoc(existingRef);
+  if (existing.exists()) {
+    const oldPath = existing.data().storagePath as string;
+    if (oldPath !== storagePath) {
+      await deleteObject(ref(storage, oldPath)).catch(() => {
+        // 既に無ければ無視
+      });
+    }
+  }
 
   await uploadBytes(ref(storage, storagePath), file, {
     contentType: file.type,
     contentDisposition: attachmentDisposition(file.name),
   });
 
-  await addDoc(submissionsCol(issueId), {
+  await setDoc(existingRef, {
     submitterName,
     submitterUid: uid,
     format,
@@ -220,7 +235,7 @@ export async function addBookletSection(params: {
 
   await uploadBytes(ref(storage, pdfStoragePath), file, {
     contentType: "application/pdf",
-    contentDisposition: attachmentDisposition(file.name),
+    contentDisposition: inlineDisposition(file.name),
   });
 
   await setDoc(sectionRef, {

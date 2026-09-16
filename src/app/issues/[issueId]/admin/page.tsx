@@ -15,31 +15,35 @@ import {
   updateBookletSectionOrder,
   updateRosterMemberByAdmin,
 } from "@/lib/data";
-import { triggerDownload } from "@/lib/download";
 import { GRADE_OPTIONS, type BookletSection, type Grade, type RosterEntry, type Submission } from "@/lib/types";
 
 function SubmissionsPanel({ issueId }: { issueId: string }) {
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
+  const [urls, setUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
-    listSubmissions(issueId).then(setSubmissions).catch(() => setError("投稿一覧を取得できませんでした。"));
+    listSubmissions(issueId)
+      .then(async (list) => {
+        setSubmissions(list);
+        const entries = await Promise.all(
+          list.map(async (s) => {
+            const url = await getSubmissionDownloadUrl(s.storagePath);
+            return [s.id, url] as const;
+          }),
+        );
+        setUrls(Object.fromEntries(entries));
+      })
+      .catch(() => setError("投稿一覧を取得できませんでした。"));
   }
   useEffect(refresh, [issueId]);
-
-  async function handleDownload(submission: Submission) {
-    setError(null);
-    try {
-      const url = await getSubmissionDownloadUrl(submission.storagePath);
-      triggerDownload(url, submission.fileName);
-    } catch {
-      setError("ファイルの取得に失敗しました。");
-    }
-  }
 
   return (
     <section className="card" style={{ marginBottom: "1.5rem" }}>
       <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>投稿された生ファイル</h3>
+      <p className="muted" style={{ fontSize: "0.78rem", marginBottom: "0.75rem" }}>
+        投稿は1人1件までです(再投稿すると前回分と置き換わります)。
+      </p>
       {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
       {submissions === null && <p className="muted" style={{ fontSize: "0.85rem" }}>読み込み中…</p>}
       {submissions !== null && submissions.length === 0 && (
@@ -58,9 +62,13 @@ function SubmissionsPanel({ issueId }: { issueId: string }) {
                 {s.locked ? " ・ 非公開" : ""}
               </span>
             </span>
-            <button type="button" className="button-outline" onClick={() => handleDownload(s)}>
-              ダウンロード
-            </button>
+            {urls[s.id] ? (
+              <a href={urls[s.id]} download={s.fileName} className="button-outline">
+                ダウンロード
+              </a>
+            ) : (
+              <span className="muted" style={{ fontSize: "0.8rem" }}>取得中…</span>
+            )}
           </li>
         ))}
       </ul>

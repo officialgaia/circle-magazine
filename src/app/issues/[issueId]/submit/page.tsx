@@ -6,11 +6,10 @@ import { useAuth } from "@/lib/auth-context";
 import {
   claimRosterEntry,
   createSubmission,
+  getMySubmission,
   getSubmissionDownloadUrl,
-  listMySubmissions,
   listRoster,
 } from "@/lib/data";
-import { triggerDownload } from "@/lib/download";
 import type { RosterEntry, Submission } from "@/lib/types";
 
 export default function SubmitPage() {
@@ -20,29 +19,37 @@ export default function SubmitPage() {
 
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [claiming, setClaiming] = useState<string | null>(null);
-  const [mySubmissions, setMySubmissions] = useState<Submission[] | null>(null);
+  const [mySubmission, setMySubmission] = useState<Submission | null | undefined>(undefined);
+  const [myUrl, setMyUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [locked, setLocked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [openingId, setOpeningId] = useState<string | null>(null);
 
   function refreshRoster() {
     listRoster(issueId).then(setRoster).catch(() => setError("名簿を取得できませんでした。"));
   }
 
-  function refreshSubmissions() {
+  function refreshSubmission() {
     if (!user) return;
-    listMySubmissions(issueId, user.uid)
-      .then(setMySubmissions)
+    getMySubmission(issueId, user.uid)
+      .then(async (submission) => {
+        setMySubmission(submission);
+        if (submission) {
+          const url = await getSubmissionDownloadUrl(submission.storagePath);
+          setMyUrl(url);
+        } else {
+          setMyUrl(null);
+        }
+      })
       .catch(() => setError("投稿状況を取得できませんでした。"));
   }
 
   useEffect(() => {
     if (authLoading) return;
     refreshRoster();
-    refreshSubmissions();
+    refreshSubmission();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issueId, authLoading, user?.uid]);
 
@@ -82,25 +89,12 @@ export default function SubmitPage() {
       setLocked(false);
       const input = document.getElementById("file-input") as HTMLInputElement | null;
       if (input) input.value = "";
-      refreshSubmissions();
+      refreshSubmission();
       refreshRoster();
     } catch {
       setError("投稿に失敗しました。もう一度お試しください。");
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleOpen(submission: Submission) {
-    setOpeningId(submission.id);
-    setError(null);
-    try {
-      const url = await getSubmissionDownloadUrl(submission.storagePath);
-      triggerDownload(url, submission.fileName);
-    } catch {
-      setError("ファイルを開けませんでした。");
-    } finally {
-      setOpeningId(null);
     }
   }
 
@@ -167,51 +161,52 @@ export default function SubmitPage() {
         <p className="muted" style={{ fontSize: "0.78rem", marginTop: "-0.5rem" }}>
           非公開にすると、これを元に冊子セクションが作られた場合も、自分と管理者以外には冊子ビューアに表示されません。
         </p>
+        {mySubmission && (
+          <p className="muted" style={{ fontSize: "0.78rem" }}>
+            投稿は1人1件までです。新しく投稿すると、下の投稿が置き換わります。
+          </p>
+        )}
         <div>
           <button type="submit" className="button" disabled={!file || submitting}>
-            {submitting ? "投稿中…" : "投稿する"}
+            {submitting ? "投稿中…" : mySubmission ? "投稿し直す" : "投稿する"}
           </button>
         </div>
         {message && <p style={{ fontSize: "0.85rem" }}>{message}</p>}
         {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
       </form>
 
-      <h3 style={{ fontSize: "1rem", margin: "1.75rem 0 0.75rem" }}>自分の投稿履歴</h3>
+      <h3 style={{ fontSize: "1rem", margin: "1.75rem 0 0.75rem" }}>自分の投稿</h3>
       <p className="muted" style={{ fontSize: "0.8rem", marginBottom: "0.75rem" }}>
-        自分が投稿したファイルは、いつでもここからダウンロードして確認できます。他のメンバーからは見えません。
+        今投稿している原稿は、いつでもここからダウンロードして確認できます。他のメンバーからは見えません。
       </p>
-      {mySubmissions === null && <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>}
-      {mySubmissions !== null && mySubmissions.length === 0 && (
+      {mySubmission === undefined && <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>}
+      {mySubmission === null && (
         <p className="muted" style={{ fontSize: "0.9rem" }}>まだ投稿がありません。</p>
       )}
-      <ul style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {mySubmissions?.map((s) => (
-          <li
-            key={s.id}
-            className="card"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              fontSize: "0.9rem",
-              cursor: "pointer",
-            }}
-            onClick={() => handleOpen(s)}
-          >
-            <span>
-              {s.fileName}
-              <span className="muted" style={{ marginLeft: "0.75rem", fontSize: "0.8rem" }}>
-                {s.format.toUpperCase()}
-                {s.locked ? " ・ 非公開" : ""}
-                {s.submittedAt ? ` ・ ${new Date(s.submittedAt).toLocaleString("ja-JP")}` : ""}
-              </span>
+      {mySubmission && (
+        <div
+          className="card"
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.9rem" }}
+        >
+          <span>
+            {mySubmission.fileName}
+            <span className="muted" style={{ marginLeft: "0.75rem", fontSize: "0.8rem" }}>
+              {mySubmission.format.toUpperCase()}
+              {mySubmission.locked ? " ・ 非公開" : ""}
+              {mySubmission.submittedAt
+                ? ` ・ ${new Date(mySubmission.submittedAt).toLocaleString("ja-JP")}`
+                : ""}
             </span>
-            <span className="button-outline" style={{ pointerEvents: "none" }}>
-              {openingId === s.id ? "ダウンロード中…" : "ダウンロード"}
-            </span>
-          </li>
-        ))}
-      </ul>
+          </span>
+          {myUrl ? (
+            <a href={myUrl} download={mySubmission.fileName} className="button-outline">
+              ダウンロード
+            </a>
+          ) : (
+            <span className="muted" style={{ fontSize: "0.8rem" }}>取得中…</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
