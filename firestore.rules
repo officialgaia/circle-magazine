@@ -28,17 +28,19 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
 
       // 投稿された生ファイルの情報。1人1件まで(ドキュメントID=投稿者のuid)。
-      // 本人(submitterUid)と管理者のみ閲覧できる。再投稿は自分の既存分の
-      // 上書き(update)としてのみ許可し、他人の分は書き換えられない。
+      // 本人と管理者のみ閲覧できる。本人判定はドキュメントIDで行う。
+      // (resource.data で判定すると、まだ投稿していない人が自分の投稿の有無を
+      //  確認しようとした時点で resource が存在せず権限エラーになるため)
       match /submissions/{submissionId} {
         allow read: if isAdmin() ||
-          (isSignedIn() && resource.data.submitterUid == request.auth.uid);
+          (isSignedIn() && submissionId == request.auth.uid);
         allow create: if isSignedIn() &&
+          submissionId == request.auth.uid &&
           request.resource.data.submitterUid == request.auth.uid &&
           request.resource.data.format in ['pdf', 'docx'];
         allow update: if isAdmin() || (
           isSignedIn() &&
-          resource.data.submitterUid == request.auth.uid &&
+          submissionId == request.auth.uid &&
           request.resource.data.submitterUid == request.auth.uid &&
           request.resource.data.format in ['pdf', 'docx']
         );
