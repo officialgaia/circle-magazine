@@ -144,9 +144,16 @@ export async function createSubmission(params: {
   locked: boolean;
 }): Promise<void> {
   const { issueId, uid, rosterId, submitterName, file, locked } = params;
-  const format: SubmissionFormat = file.name.toLowerCase().endsWith(".pdf")
-    ? "pdf"
-    : "docx";
+  const lowerName = file.name.toLowerCase();
+  const format: SubmissionFormat = lowerName.endsWith(".pdf") ? "pdf" : "docx";
+  // スマートフォンのファイル選択では file.type が空文字になることがあり、
+  // Storageルールのcontent-typeチェックに弾かれて投稿が即座に失敗する原因に
+  // なっていた。拡張子から正しいMIMEタイプを判定して確実に設定する。
+  const contentType = lowerName.endsWith(".pdf")
+    ? "application/pdf"
+    : lowerName.endsWith(".doc")
+      ? "application/msword"
+      : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   const storagePath = `issues/${issueId}/submissions/${uid}/${file.name}`;
 
   const existingRef = doc(submissionsCol(issueId), uid);
@@ -161,7 +168,7 @@ export async function createSubmission(params: {
   }
 
   await uploadBytes(ref(storage, storagePath), file, {
-    contentType: file.type,
+    contentType,
   });
 
   await setDoc(existingRef, {
@@ -342,6 +349,17 @@ export async function updateRosterMemberByAdmin(
   input: { name: string; grade: Grade | ""; submitted: boolean },
 ): Promise<void> {
   await updateDoc(doc(db, "issues", issueId, "roster", rosterId), input);
+}
+
+// 別の端末で選び直したい場合や、認証がうまく引き継がれなかった場合の
+// 復旧用に、管理者が「自分の行」の選択を解除できるようにする。
+export async function resetRosterClaim(
+  issueId: string,
+  rosterId: string,
+): Promise<void> {
+  await updateDoc(doc(db, "issues", issueId, "roster", rosterId), {
+    claimedByUid: null,
+  });
 }
 
 export async function deleteRosterMember(

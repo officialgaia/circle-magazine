@@ -13,6 +13,7 @@ import {
   listRoster,
   listSubmissions,
   markSubmissionDownloaded,
+  resetRosterClaim,
   updateBookletSectionOrder,
   updateRosterMemberByAdmin,
 } from "@/lib/data";
@@ -299,9 +300,22 @@ function RosterPanel({ issueId }: { issueId: string }) {
     }
   }
 
+  async function handleResetClaim(entry: RosterEntry) {
+    try {
+      await resetRosterClaim(issueId, entry.id);
+      refresh();
+    } catch {
+      setError("選択の解除に失敗しました。");
+    }
+  }
+
   return (
     <section className="card">
       <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>名簿の管理</h3>
+      <p className="muted" style={{ fontSize: "0.78rem", marginBottom: "0.75rem" }}>
+        機種変更や通信状況などで本人と認識されなくなった場合は、「選択解除」を押すと、
+        そのメンバーが名簿から自分の名前をあらためて選び直せるようになります。
+      </p>
       {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
 
       <table className="table" style={{ marginBottom: "1.25rem" }}>
@@ -310,6 +324,7 @@ function RosterPanel({ issueId }: { issueId: string }) {
             <th>名前</th>
             <th>学年</th>
             <th>提出</th>
+            <th>本人選択</th>
             <th></th>
           </tr>
         </thead>
@@ -336,6 +351,15 @@ function RosterPanel({ issueId }: { issueId: string }) {
                 </select>
               </td>
               <td>{entry.submitted ? "提出済み" : "未提出"}</td>
+              <td>
+                {entry.claimedByUid ? (
+                  <button type="button" className="button-outline" onClick={() => handleResetClaim(entry)}>
+                    選択解除
+                  </button>
+                ) : (
+                  <span className="muted" style={{ fontSize: "0.8rem" }}>未選択</span>
+                )}
+              </td>
               <td>
                 <button type="button" className="button-outline" onClick={() => handleDelete(entry)}>
                   削除
