@@ -6,6 +6,12 @@ import { useAuth } from "@/lib/auth-context";
 import { claimRosterEntry, listRoster } from "@/lib/data";
 import type { RosterEntry } from "@/lib/types";
 
+// 原因不明のモバイル不具合を切り分けるため、エラー内容を画面にそのまま表示する。
+function errorDetail(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
 export default function RosterPage() {
   const params = useParams<{ issueId: string }>();
   const issueId = params.issueId;
@@ -18,7 +24,7 @@ export default function RosterPage() {
   function refresh() {
     listRoster(issueId)
       .then(setRoster)
-      .catch(() => setError("名簿を取得できませんでした。"));
+      .catch((err) => setError(`名簿を取得できませんでした。(${errorDetail(err)})`));
   }
 
   useEffect(() => {
@@ -30,14 +36,19 @@ export default function RosterPage() {
   const myEntry = roster?.find((r) => r.claimedByUid === user?.uid) ?? null;
 
   async function handleClaim(rosterId: string) {
-    if (!user) return;
+    if (!user) {
+      setError("接続が完了していません。ページを再読み込みしてからお試しください。");
+      return;
+    }
     setClaiming(rosterId);
     setError(null);
     try {
       await claimRosterEntry(issueId, rosterId, user.uid);
       refresh();
-    } catch {
-      setError("選択に失敗しました。すでに他の人が選んでいる可能性があります。");
+    } catch (err) {
+      setError(
+        `選択に失敗しました。すでに他の人が選んでいる可能性があります。(${errorDetail(err)})`,
+      );
     } finally {
       setClaiming(null);
     }

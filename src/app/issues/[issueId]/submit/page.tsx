@@ -12,6 +12,12 @@ import {
 } from "@/lib/data";
 import type { RosterEntry, Submission } from "@/lib/types";
 
+// 原因不明のモバイル不具合を切り分けるため、エラー内容を画面にそのまま表示する。
+function errorDetail(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
 export default function SubmitPage() {
   const params = useParams<{ issueId: string }>();
   const issueId = params.issueId;
@@ -28,7 +34,9 @@ export default function SubmitPage() {
   const [error, setError] = useState<string | null>(null);
 
   function refreshRoster() {
-    listRoster(issueId).then(setRoster).catch(() => setError("名簿を取得できませんでした。"));
+    listRoster(issueId)
+      .then(setRoster)
+      .catch((err) => setError(`名簿を取得できませんでした。(${errorDetail(err)})`));
   }
 
   function refreshSubmission() {
@@ -43,7 +51,7 @@ export default function SubmitPage() {
           setMyUrl(null);
         }
       })
-      .catch(() => setError("投稿状況を取得できませんでした。"));
+      .catch((err) => setError(`投稿状況を取得できませんでした。(${errorDetail(err)})`));
   }
 
   useEffect(() => {
@@ -56,14 +64,19 @@ export default function SubmitPage() {
   const myEntry = roster?.find((r) => r.claimedByUid === user?.uid) ?? null;
 
   async function handleClaim(rosterId: string) {
-    if (!user) return;
+    if (!user) {
+      setError("接続が完了していません。ページを再読み込みしてからお試しください。");
+      return;
+    }
     setClaiming(rosterId);
     setError(null);
     try {
       await claimRosterEntry(issueId, rosterId, user.uid);
       refreshRoster();
-    } catch {
-      setError("選択に失敗しました。すでに他の人が選んでいる可能性があります。");
+    } catch (err) {
+      setError(
+        `選択に失敗しました。すでに他の人が選んでいる可能性があります。(${errorDetail(err)})`,
+      );
     } finally {
       setClaiming(null);
     }
@@ -71,7 +84,11 @@ export default function SubmitPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!file || !user || !myEntry) return;
+    if (!file || !myEntry) return;
+    if (!user) {
+      setError("接続が完了していません。ページを再読み込みしてからお試しください。");
+      return;
+    }
     setError(null);
     setMessage(null);
     setSubmitting(true);
@@ -91,8 +108,8 @@ export default function SubmitPage() {
       if (input) input.value = "";
       refreshSubmission();
       refreshRoster();
-    } catch {
-      setError("投稿に失敗しました。もう一度お試しください。");
+    } catch (err) {
+      setError(`投稿に失敗しました。もう一度お試しください。(${errorDetail(err)})`);
     } finally {
       setSubmitting(false);
     }
