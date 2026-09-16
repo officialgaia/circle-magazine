@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 
 export function Header() {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, loading, isAdmin, signOut } = useAuth();
 
   return (
     <header className="header">
@@ -12,27 +12,33 @@ export function Header() {
         <Link href="/" className="title">
           サークル機関誌
         </Link>
-        {user && (
+        {!loading && (
           <nav className="nav items-center">
             <Link href="/">年度一覧</Link>
-            {isAdmin && <Link href="/admin">管理</Link>}
-            <span className="muted">{user.displayName ?? user.email}</span>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              style={{
-                color: "var(--muted)",
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                fontSize: "0.85rem",
-                textDecoration: "underline",
-                textUnderlineOffset: "2px",
-              }}
-            >
-              ログアウト
-            </button>
+            {isAdmin ? (
+              <>
+                <Link href="/admin">管理</Link>
+                <span className="muted">{user?.displayName ?? user?.email}</span>
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  style={{
+                    color: "var(--muted)",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    fontSize: "0.85rem",
+                    textDecoration: "underline",
+                    textUnderlineOffset: "2px",
+                  }}
+                >
+                  ログアウト
+                </button>
+              </>
+            ) : (
+              <Link href="/login">管理者ログイン</Link>
+            )}
           </nav>
         )}
       </div>

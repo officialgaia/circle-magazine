@@ -8,7 +8,7 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isSignedIn() &&
+      return isSignedIn() && request.auth.token.email != null &&
         firestore.get(/databases/(default)/documents/config/adminEmails)
           .data.adminEmails.hasAny([request.auth.token.email]);
     }
@@ -26,7 +26,7 @@ service firebase.storage {
     }
 
     // 完成した冊子セクションのPDF。セクションIDでフォルダを分け、
-    // Firestore側のドキュメント(locked / ownerEmail)を参照して、
+    // Firestore側のドキュメント(locked / ownerUid)を参照して、
     // 非公開セクションのファイルは投稿者本人と管理者にしか読めないようにする。
     match /issues/{issueId}/booklet/{sectionId}/{fileName} {
       function section() {
@@ -37,7 +37,7 @@ service firebase.storage {
 
       allow read: if isAdmin() ||
         (isSignedIn() && section().locked == false) ||
-        (isSignedIn() && section().ownerEmail == request.auth.token.email);
+        (isSignedIn() && section().ownerUid == request.auth.uid);
       allow write: if isAdmin() &&
         request.resource.size < 50 * 1024 * 1024 &&
         request.resource.contentType == 'application/pdf';

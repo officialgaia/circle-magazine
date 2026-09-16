@@ -3,12 +3,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // 匿名認証も含め、Firebase Authのセッションを持っていれば true。
+    // 一般メンバーはログイン画面を見ないが、裏側で自動的に匿名セッションが
+    // 割り当てられるため、実質的にアプリの正規のクライアントからのみ true になる。
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isAdmin() {
-      return isSignedIn() &&
+      return isSignedIn() && request.auth.token.email != null &&
         request.auth.token.email in
           get(/databases/$(database)/documents/config/adminEmails).data.adminEmails;
     }
@@ -24,36 +27,42 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
 
-      // 投稿された生ファイルの情報。本人と管理者のみ閲覧できる。
+      // 投稿された生ファイルの情報。本人(submitterUid)と管理者のみ閲覧できる。
       match /submissions/{submissionId} {
         allow read: if isAdmin() ||
-          (isSignedIn() && resource.data.submitterEmail == request.auth.token.email);
+          (isSignedIn() && resource.data.submitterUid == request.auth.uid);
         allow create: if isSignedIn() &&
-          request.resource.data.submitterEmail == request.auth.token.email &&
           request.resource.data.submitterUid == request.auth.uid &&
           request.resource.data.format in ['pdf', 'docx'];
         allow update, delete: if isAdmin();
       }
 
       // 完成した冊子セクション。非公開(locked)のセクションは、
-      // 投稿者本人(ownerEmail)と管理者にしか見えない。編集は管理者のみ。
+      // 投稿者本人(ownerUid)と管理者にしか見えない。編集は管理者のみ。
       match /booklet/{sectionId} {
         allow read: if isAdmin() ||
           (isSignedIn() && resource.data.locked == false) ||
-          (isSignedIn() && resource.data.ownerEmail == request.auth.token.email);
+          (isSignedIn() && resource.data.ownerUid == request.auth.uid);
         allow write: if isAdmin();
       }
 
-      // 名簿。閲覧はメンバー全員。本人は note と submitted のみ更新可能。
+      // 名簿。閲覧はメンバー全員(匿名可)。
+      // 「自分の行」は claimedByUid で識別する(ログイン画面の代わり)。
+      // 未選択の行を自分の行として選ぶ、または既に自分の行になっている場合のみ、
+      // note・submitted・claimedByUid を更新できる。
       match /roster/{rosterId} {
         allow read: if isSignedIn();
         allow create, delete: if isAdmin();
         allow update: if isAdmin() || (
           isSignedIn() &&
-          resource.data.email == request.auth.token.email &&
+          (
+            resource.data.claimedByUid == request.auth.uid ||
+            (resource.data.claimedByUid == null &&
+              request.resource.data.claimedByUid == request.auth.uid)
+          ) &&
           request.resource.data.name == resource.data.name &&
-          request.resource.data.email == resource.data.email &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['note', 'submitted'])
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['note', 'submitted', 'claimedByUid'])
         );
       }
     }

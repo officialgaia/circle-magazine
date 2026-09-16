@@ -11,6 +11,7 @@ import {
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithPopup,
   signOut as firebaseSignOut,
   type User,
@@ -22,7 +23,7 @@ interface AuthValue {
   user: User | null;
   loading: boolean;
   isAdmin: boolean;
-  signIn: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -43,8 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+      // 一般メンバーにはログイン画面を見せない。未ログインなら
+      // 裏側で自動的に匿名セッションを割り当て、本人識別だけは
+      // 名簿の「自分の行」選択で行う(管理者はGoogleサインインのまま)。
+      if (!nextUser) {
+        await signInAnonymously(auth);
+        return;
+      }
       setUser(nextUser);
-      setIsAdmin(await checkIsAdmin(nextUser?.email ?? null));
+      setIsAdmin(await checkIsAdmin(nextUser.email));
       setLoading(false);
     });
     return unsubscribe;
@@ -55,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       isAdmin,
-      signIn: async () => {
+      signInWithGoogle: async () => {
         await signInWithPopup(auth, new GoogleAuthProvider());
       },
       signOut: async () => {

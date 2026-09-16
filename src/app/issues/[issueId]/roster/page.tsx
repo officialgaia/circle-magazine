@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { listRoster, updateOwnRosterNote } from "@/lib/data";
+import { claimRosterEntry, listRoster, updateOwnRosterNote } from "@/lib/data";
 import type { RosterEntry } from "@/lib/types";
 
 export default function RosterPage() {
   const params = useParams<{ issueId: string }>();
   const issueId = params.issueId;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -22,9 +22,24 @@ export default function RosterPage() {
       .catch(() => setError("名簿を取得できませんでした。"));
   }
 
-  useEffect(refresh, [issueId]);
+  useEffect(() => {
+    if (authLoading) return;
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issueId, authLoading]);
 
-  const myEntry = roster?.find((r) => r.email === user?.email) ?? null;
+  const myEntry = roster?.find((r) => r.claimedByUid === user?.uid) ?? null;
+
+  async function handleClaim(rosterId: string) {
+    if (!user) return;
+    setError(null);
+    try {
+      await claimRosterEntry(issueId, rosterId, user.uid);
+      refresh();
+    } catch {
+      setError("選択に失敗しました。すでに他の人が選んでいる可能性があります。");
+    }
+  }
 
   async function handleSaveNote(rosterId: string) {
     setSavingId(rosterId);
@@ -46,6 +61,12 @@ export default function RosterPage() {
         <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>
       )}
 
+      {roster !== null && !myEntry && (
+        <p className="muted" style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
+          自分の名前の行の「これは自分です」を押すと、以降このブラウザで自分の欄として記入・提出状況の確認ができるようになります。
+        </p>
+      )}
+
       {roster !== null && (
         <table className="table">
           <thead>
@@ -58,7 +79,7 @@ export default function RosterPage() {
           </thead>
           <tbody>
             {roster.map((entry) => {
-              const isMine = entry.email === user?.email;
+              const isMine = entry.id === myEntry?.id;
               return (
                 <tr key={entry.id}>
                   <td>{entry.name}</td>
@@ -82,8 +103,17 @@ export default function RosterPage() {
                           保存
                         </button>
                       </div>
-                    ) : (
+                    ) : entry.claimedByUid ? (
                       <span className="muted">{entry.note}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="button-outline"
+                        disabled={!!myEntry}
+                        onClick={() => handleClaim(entry.id)}
+                      >
+                        これは自分です
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -91,12 +121,6 @@ export default function RosterPage() {
             })}
           </tbody>
         </table>
-      )}
-
-      {roster !== null && !myEntry && (
-        <p className="muted" style={{ fontSize: "0.85rem", marginTop: "1rem" }}>
-          あなたのアカウントは名簿に登録されていません。管理者に登録を依頼してください。
-        </p>
       )}
     </div>
   );

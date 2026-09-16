@@ -82,7 +82,6 @@ function toSubmission(id: string, data: Record<string, unknown>): Submission {
   return {
     id,
     submitterName: data.submitterName as string,
-    submitterEmail: data.submitterEmail as string,
     submitterUid: data.submitterUid as string,
     format: data.format as SubmissionFormat,
     fileName: data.fileName as string,
@@ -92,6 +91,7 @@ function toSubmission(id: string, data: Record<string, unknown>): Submission {
   };
 }
 
+// 管理者専用。号内の全投稿を一覧する。
 export async function listSubmissions(issueId: string): Promise<Submission[]> {
   const snap = await getDocs(
     query(submissionsCol(issueId), orderBy("submittedAt", "desc")),
@@ -99,24 +99,28 @@ export async function listSubmissions(issueId: string): Promise<Submission[]> {
   return snap.docs.map((d) => toSubmission(d.id, d.data()));
 }
 
-export async function getSubmission(
+// 自分(このブラウザ)が投稿したものだけを取得する。
+export async function listMySubmissions(
   issueId: string,
-  submissionId: string,
-): Promise<Submission | null> {
-  const snap = await getDoc(doc(db, "issues", issueId, "submissions", submissionId));
-  if (!snap.exists()) return null;
-  return toSubmission(snap.id, snap.data());
+  uid: string,
+): Promise<Submission[]> {
+  const snap = await getDocs(
+    query(submissionsCol(issueId), where("submitterUid", "==", uid)),
+  );
+  return snap.docs
+    .map((d) => toSubmission(d.id, d.data()))
+    .sort((a, b) => (b.submittedAt ?? 0) - (a.submittedAt ?? 0));
 }
 
 export async function createSubmission(params: {
   issueId: string;
   uid: string;
+  rosterId: string;
   submitterName: string;
-  submitterEmail: string;
   file: File;
   locked: boolean;
 }): Promise<void> {
-  const { issueId, uid, submitterName, submitterEmail, file, locked } = params;
+  const { issueId, uid, rosterId, submitterName, file, locked } = params;
   const format: SubmissionFormat = file.name.toLowerCase().endsWith(".pdf")
     ? "pdf"
     : "docx";
@@ -128,7 +132,6 @@ export async function createSubmission(params: {
 
   await addDoc(submissionsCol(issueId), {
     submitterName,
-    submitterEmail,
     submitterUid: uid,
     format,
     fileName: file.name,
@@ -137,14 +140,9 @@ export async function createSubmission(params: {
     locked,
   });
 
-  // 自分の名簿行があれば提出済みにする
-  const rosterSnap = await getDocs(rosterCol(issueId));
-  const own = rosterSnap.docs.find((d) => d.data().email === submitterEmail);
-  if (own) {
-    await updateDoc(doc(db, "issues", issueId, "roster", own.id), {
-      submitted: true,
-    });
-  }
+  await updateDoc(doc(db, "issues", issueId, "roster", rosterId), {
+    submitted: true,
+  });
 }
 
 export async function getSubmissionDownloadUrl(
@@ -164,17 +162,18 @@ function toBookletSection(id: string, data: Record<string, unknown>): BookletSec
     fileName: data.fileName as string,
     sourceSubmissionId: (data.sourceSubmissionId as string | null) ?? null,
     locked: Boolean(data.locked),
-    ownerEmail: (data.ownerEmail as string | null) ?? null,
+    ownerUid: (data.ownerUid as string | null) ?? null,
+    ownerName: (data.ownerName as string | null) ?? null,
   };
 }
 
-// 非公開(locked)セクションは、投稿者本人と管理者にしか見えない。
+// 非公開(locked)セクションは、投稿者本人(ownerUid)と管理者にしか見えない。
 // Firestoreのクエリは「ルール上返せることが保証できる範囲」しか実行できないため、
 // 管理者は無条件の一覧取得、一般メンバーは
 // 「公開セクション」「自分が投稿者のセクション」の2クエリに分けて取得し、マージする。
 export async function listBookletSections(
   issueId: string,
-  viewer: { isAdmin: boolean; email: string | null },
+  viewer: { isAdmin: boolean; uid: string | null },
 ): Promise<BookletSection[]> {
   if (viewer.isAdmin) {
     const snap = await getDocs(query(bookletCol(issueId), orderBy("order", "asc")));
@@ -187,11 +186,11 @@ export async function listBookletSections(
   const byId = new Map<string, BookletSection>();
   publicSnap.docs.forEach((d) => byId.set(d.id, toBookletSection(d.id, d.data())));
 
-  if (viewer.email) {
+  if (viewer.uid) {
     const ownSnap = await getDocs(
       query(
         bookletCol(issueId),
-        where("ownerEmail", "==", viewer.email),
+        where("ownerUid", "==", viewer.uid),
         orderBy("order", "asc"),
       ),
     );
@@ -211,7 +210,7 @@ export async function addBookletSection(params: {
   const { issueId, title, file, order, sourceSubmission } = params;
 
   // 先にドキュメントIDを採番し、Storageのパスにも使う
-  // (施錠されたセクションのファイルをStorageルール側で判定できるようにするため)
+  // (非公開セクションのファイルをStorageルール側で判定できるようにするため)
   const sectionRef = doc(bookletCol(issueId));
   const pdfStoragePath = `issues/${issueId}/booklet/${sectionRef.id}/${file.name}`;
 
@@ -226,7 +225,8 @@ export async function addBookletSection(params: {
     fileName: file.name,
     sourceSubmissionId: sourceSubmission?.id ?? null,
     locked: sourceSubmission?.locked ?? false,
-    ownerEmail: sourceSubmission?.submitterEmail ?? null,
+    ownerUid: sourceSubmission?.submitterUid ?? null,
+    ownerName: sourceSubmission?.submitterName ?? null,
   });
 }
 
@@ -257,39 +257,74 @@ export async function getBookletFileUrl(pdfStoragePath: string): Promise<string>
 
 // ----- 名簿 -----
 
+function toRosterEntry(id: string, data: Record<string, unknown>): RosterEntry {
+  return {
+    id,
+    name: data.name as string,
+    grade: (data.grade as Grade | "") ?? "",
+    submitted: Boolean(data.submitted),
+    note: (data.note as string) ?? "",
+    claimedByUid: (data.claimedByUid as string | null) ?? null,
+  };
+}
+
 export async function listRoster(issueId: string): Promise<RosterEntry[]> {
   const snap = await getDocs(query(rosterCol(issueId), orderBy("name", "asc")));
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as Omit<RosterEntry, "id">),
-  }));
+  return snap.docs.map((d) => toRosterEntry(d.id, d.data()));
+}
+
+// このブラウザ(uid)が既に「自分の行」として選択済みの名簿行を探す。
+export async function findMyRosterEntry(
+  issueId: string,
+  uid: string,
+): Promise<RosterEntry | null> {
+  const snap = await getDocs(
+    query(rosterCol(issueId), where("claimedByUid", "==", uid)),
+  );
+  const first = snap.docs[0];
+  return first ? toRosterEntry(first.id, first.data()) : null;
+}
+
+// 名簿の中から自分の行を選択する(ログイン画面の代わりの本人識別)。
+export async function claimRosterEntry(
+  issueId: string,
+  rosterId: string,
+  uid: string,
+): Promise<void> {
+  await updateDoc(doc(db, "issues", issueId, "roster", rosterId), {
+    claimedByUid: uid,
+  });
 }
 
 export async function addRosterMember(
   issueId: string,
-  input: { name: string; email: string; grade: Grade | "" },
+  input: { name: string; grade: Grade | "" },
 ): Promise<void> {
   await addDoc(rosterCol(issueId), {
     name: input.name,
-    email: input.email,
     grade: input.grade,
     submitted: false,
     note: "",
+    claimedByUid: null,
   });
 }
 
 export async function updateRosterMemberByAdmin(
   issueId: string,
   rosterId: string,
-  input: {
-    name: string;
-    email: string;
-    grade: Grade | "";
-    submitted: boolean;
-    note: string;
-  },
+  input: { name: string; grade: Grade | ""; submitted: boolean; note: string },
 ): Promise<void> {
-  await setDoc(doc(db, "issues", issueId, "roster", rosterId), input);
+  await updateDoc(doc(db, "issues", issueId, "roster", rosterId), input);
+}
+
+// 誤って選択された場合などに、管理者が「自分の行」の指定を解除する。
+export async function resetRosterClaim(
+  issueId: string,
+  rosterId: string,
+): Promise<void> {
+  await updateDoc(doc(db, "issues", issueId, "roster", rosterId), {
+    claimedByUid: null,
+  });
 }
 
 export async function updateOwnRosterNote(

@@ -4,17 +4,21 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
+  claimRosterEntry,
   createSubmission,
   getSubmissionDownloadUrl,
-  listSubmissions,
+  listMySubmissions,
+  listRoster,
 } from "@/lib/data";
-import type { Submission } from "@/lib/types";
+import type { RosterEntry, Submission } from "@/lib/types";
 
 export default function SubmitPage() {
   const params = useParams<{ issueId: string }>();
   const issueId = params.issueId;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
+  const [roster, setRoster] = useState<RosterEntry[] | null>(null);
+  const [claiming, setClaiming] = useState<string | null>(null);
   const [mySubmissions, setMySubmissions] = useState<Submission[] | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [locked, setLocked] = useState(false);
@@ -23,18 +27,43 @@ export default function SubmitPage() {
   const [error, setError] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
 
-  function refresh() {
-    if (!user?.email) return;
-    listSubmissions(issueId)
-      .then((all) => setMySubmissions(all.filter((s) => s.submitterEmail === user.email)))
+  function refreshRoster() {
+    listRoster(issueId).then(setRoster).catch(() => setError("名簿を取得できませんでした。"));
+  }
+
+  function refreshSubmissions() {
+    if (!user) return;
+    listMySubmissions(issueId, user.uid)
+      .then(setMySubmissions)
       .catch(() => setError("投稿状況を取得できませんでした。"));
   }
 
-  useEffect(refresh, [issueId, user?.email]);
+  useEffect(() => {
+    if (authLoading) return;
+    refreshRoster();
+    refreshSubmissions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issueId, authLoading, user?.uid]);
+
+  const myEntry = roster?.find((r) => r.claimedByUid === user?.uid) ?? null;
+
+  async function handleClaim(rosterId: string) {
+    if (!user) return;
+    setClaiming(rosterId);
+    setError(null);
+    try {
+      await claimRosterEntry(issueId, rosterId, user.uid);
+      refreshRoster();
+    } catch {
+      setError("選択に失敗しました。すでに他の人が選んでいる可能性があります。");
+    } finally {
+      setClaiming(null);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!file || !user?.email) return;
+    if (!file || !user || !myEntry) return;
     setError(null);
     setMessage(null);
     setSubmitting(true);
@@ -42,8 +71,8 @@ export default function SubmitPage() {
       await createSubmission({
         issueId,
         uid: user.uid,
-        submitterName: user.displayName ?? user.email,
-        submitterEmail: user.email,
+        rosterId: myEntry.id,
+        submitterName: myEntry.name,
         file,
         locked,
       });
@@ -52,7 +81,8 @@ export default function SubmitPage() {
       setLocked(false);
       const input = document.getElementById("file-input") as HTMLInputElement | null;
       if (input) input.value = "";
-      refresh();
+      refreshSubmissions();
+      refreshRoster();
     } catch {
       setError("投稿に失敗しました。もう一度お試しください。");
     } finally {
@@ -63,14 +93,52 @@ export default function SubmitPage() {
   async function handleOpen(submission: Submission) {
     setOpeningId(submission.id);
     setError(null);
+    // Safariは「クリックの後にawaitを挟んでからwindow.open」だとポップアップとして
+    // ブロックしてしまうため、まず空のタブを同期的に開いてからURLを差し込む。
+    const win = window.open("", "_blank");
     try {
       const url = await getSubmissionDownloadUrl(submission.storagePath);
-      window.open(url, "_blank", "noreferrer");
+      if (win) win.location.href = url;
     } catch {
+      win?.close();
       setError("ファイルを開けませんでした。");
     } finally {
       setOpeningId(null);
     }
+  }
+
+  if (roster !== null && !myEntry) {
+    return (
+      <div>
+        <h2 style={{ fontSize: "1.15rem", marginBottom: "1rem" }}>原稿の投稿</h2>
+        <p className="muted" style={{ fontSize: "0.9rem", marginBottom: "1rem" }}>
+          投稿する前に、名簿から自分の名前を選んでください。
+        </p>
+        <ul style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {roster.map((entry) => (
+            <li
+              key={entry.id}
+              className="card"
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+            >
+              <span>
+                {entry.name}
+                {entry.grade && <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.85rem" }}>{entry.grade}</span>}
+              </span>
+              <button
+                type="button"
+                className="button-outline"
+                disabled={!!entry.claimedByUid || claiming === entry.id}
+                onClick={() => handleClaim(entry.id)}
+              >
+                {entry.claimedByUid ? "選択済み" : "これは自分です"}
+              </button>
+            </li>
+          ))}
+        </ul>
+        {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem", marginTop: "1rem" }}>{error}</p>}
+      </div>
+    );
   }
 
   return (

@@ -112,7 +112,7 @@ function AdminOverviewInner() {
 
 export default function AdminOverviewPage() {
   return (
-    <RequireAuth requireAdmin>
+    <RequireAuth>
       <AdminOverviewInner />
     </RequireAuth>
   );

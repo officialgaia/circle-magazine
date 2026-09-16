@@ -2,19 +2,21 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { RequireAuth } from "@/components/RequireAuth";
+import { useAuth } from "@/lib/auth-context";
 import { listIssues } from "@/lib/data";
 import type { Issue } from "@/lib/types";
 
-function IssueListInner() {
+export default function HomePage() {
+  const { loading: authLoading } = useAuth();
   const [issues, setIssues] = useState<Issue[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
     listIssues()
       .then(setIssues)
       .catch(() => setError("号の一覧を取得できませんでした。"));
-  }, []);
+  }, [authLoading]);
 
   return (
     <div>
@@ -62,13 +64,5 @@ function IssueListInner() {
         ))}
       </ul>
     </div>
-  );
-}
-
-export default function HomePage() {
-  return (
-    <RequireAuth>
-      <IssueListInner />
-    </RequireAuth>
   );
 }

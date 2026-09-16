@@ -12,7 +12,7 @@
       "collectionGroup": "booklet",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "ownerEmail", "order": "ASCENDING" },
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
         { "fieldPath": "order", "order": "ASCENDING" }
       ]
     }

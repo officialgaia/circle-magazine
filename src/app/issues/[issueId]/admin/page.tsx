@@ -12,6 +12,7 @@ import {
   listBookletSections,
   listRoster,
   listSubmissions,
+  resetRosterClaim,
   updateBookletSectionOrder,
   updateRosterMemberByAdmin,
 } from "@/lib/data";
@@ -27,10 +28,15 @@ function SubmissionsPanel({ issueId }: { issueId: string }) {
   useEffect(refresh, [issueId]);
 
   async function handleDownload(storagePath: string) {
+    setError(null);
+    // Safariは「クリックの後にawaitを挟んでからwindow.open」だとポップアップとして
+    // ブロックしてしまうため、まず空のタブを同期的に開いてからURLを差し込む。
+    const win = window.open("", "_blank");
     try {
       const url = await getSubmissionDownloadUrl(storagePath);
-      window.open(url, "_blank", "noreferrer");
+      if (win) win.location.href = url;
     } catch {
+      win?.close();
       setError("ファイルの取得に失敗しました。");
     }
   }
@@ -76,7 +82,7 @@ function BookletPanel({ issueId }: { issueId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
-    listBookletSections(issueId, { isAdmin: true, email: null })
+    listBookletSections(issueId, { isAdmin: true, uid: null })
       .then(setSections)
       .catch(() => setError("セクション一覧を取得できませんでした。"));
     listSubmissions(issueId).then(setSubmissions).catch(() => {});
@@ -136,6 +142,9 @@ function BookletPanel({ issueId }: { issueId: string }) {
   return (
     <section className="card" style={{ marginBottom: "1.5rem" }}>
       <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>冊子セクション</h3>
+      <p className="muted" style={{ fontSize: "0.78rem", marginBottom: "0.75rem" }}>
+        並び替えは冊子ビューア画面からも行えます。
+      </p>
       {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
 
       <ul style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.25rem" }}>
@@ -149,7 +158,7 @@ function BookletPanel({ issueId }: { issueId: string }) {
               {section.title}
               {section.locked && (
                 <span className="muted" style={{ fontSize: "0.78rem", marginLeft: "0.5rem" }}>
-                  (非公開 ・ {section.ownerEmail})
+                  (非公開 ・ {section.ownerName ?? "不明"})
                 </span>
               )}
             </span>
@@ -223,7 +232,6 @@ function BookletPanel({ issueId }: { issueId: string }) {
 function RosterPanel({ issueId }: { issueId: string }) {
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [grade, setGrade] = useState<Grade | "">("");
   const [error, setError] = useState<string | null>(null);
 
@@ -234,11 +242,10 @@ function RosterPanel({ issueId }: { issueId: string }) {
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!name || !email) return;
+    if (!name) return;
     try {
-      await addRosterMember(issueId, { name, email, grade });
+      await addRosterMember(issueId, { name, grade });
       setName("");
-      setEmail("");
       setGrade("");
       refresh();
     } catch {
@@ -250,7 +257,6 @@ function RosterPanel({ issueId }: { issueId: string }) {
     try {
       await updateRosterMemberByAdmin(issueId, entry.id, {
         name: patch.name ?? entry.name,
-        email: patch.email ?? entry.email,
         grade: patch.grade ?? entry.grade,
         submitted: patch.submitted ?? entry.submitted,
         note: patch.note ?? entry.note,
@@ -258,6 +264,15 @@ function RosterPanel({ issueId }: { issueId: string }) {
       refresh();
     } catch {
       setError("更新に失敗しました。");
+    }
+  }
+
+  async function handleResetClaim(entry: RosterEntry) {
+    try {
+      await resetRosterClaim(issueId, entry.id);
+      refresh();
+    } catch {
+      setError("選択の解除に失敗しました。");
     }
   }
 
@@ -273,6 +288,10 @@ function RosterPanel({ issueId }: { issueId: string }) {
   return (
     <section className="card">
       <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>名簿の管理</h3>
+      <p className="muted" style={{ fontSize: "0.78rem", marginBottom: "0.75rem" }}>
+        メンバーはログイン不要で、名簿から自分の行を選ぶことで本人識別しています。
+        違う行を選んでしまった場合は「選択解除」で選び直せます。
+      </p>
       {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{error}</p>}
 
       <table className="table" style={{ marginBottom: "1.25rem" }}>
@@ -280,8 +299,8 @@ function RosterPanel({ issueId }: { issueId: string }) {
           <tr>
             <th>名前</th>
             <th>学年</th>
-            <th>メール</th>
             <th>提出</th>
+            <th>本人確認</th>
             <th></th>
           </tr>
         </thead>
@@ -309,17 +328,19 @@ function RosterPanel({ issueId }: { issueId: string }) {
               </td>
               <td>
                 <input
-                  className="input"
-                  defaultValue={entry.email}
-                  onBlur={(e) => handleFieldChange(entry, { email: e.target.value })}
-                />
-              </td>
-              <td>
-                <input
                   type="checkbox"
                   checked={entry.submitted}
                   onChange={(e) => handleFieldChange(entry, { submitted: e.target.checked })}
                 />
+              </td>
+              <td>
+                {entry.claimedByUid ? (
+                  <button type="button" className="button-outline" onClick={() => handleResetClaim(entry)}>
+                    選択解除
+                  </button>
+                ) : (
+                  <span className="muted" style={{ fontSize: "0.8rem" }}>未選択</span>
+                )}
               </td>
               <td>
                 <button type="button" className="button-outline" onClick={() => handleDelete(entry)}>
@@ -350,11 +371,7 @@ function RosterPanel({ issueId }: { issueId: string }) {
             ))}
           </select>
         </div>
-        <div>
-          <label className="label" htmlFor="roster-email">メール</label>
-          <input id="roster-email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <button type="submit" className="button" disabled={!name || !email}>
+        <button type="submit" className="button" disabled={!name}>
           追加
         </button>
       </form>
@@ -376,7 +393,7 @@ function IssueAdminInner({ issueId }: { issueId: string }) {
 export default function IssueAdminPage() {
   const params = useParams<{ issueId: string }>();
   return (
-    <RequireAuth requireAdmin>
+    <RequireAuth>
       <IssueAdminInner issueId={params.issueId} />
     </RequireAuth>
   );

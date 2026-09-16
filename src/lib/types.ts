@@ -12,7 +12,6 @@ export type SubmissionFormat = "pdf" | "docx";
 export interface Submission {
   id: string;
   submitterName: string;
-  submitterEmail: string;
   submitterUid: string;
   format: SubmissionFormat;
   fileName: string;
@@ -29,7 +28,8 @@ export interface BookletSection {
   fileName: string;
   sourceSubmissionId: string | null;
   locked: boolean;
-  ownerEmail: string | null;
+  ownerUid: string | null;
+  ownerName: string | null;
 }
 
 export const GRADE_OPTIONS = [
@@ -46,8 +46,10 @@ export type Grade = (typeof GRADE_OPTIONS)[number];
 export interface RosterEntry {
   id: string;
   name: string;
-  email: string;
   grade: Grade | "";
   submitted: boolean;
   note: string;
+  // このブラウザ(匿名認証のuid)が「自分の行」として選択済みかどうか。
+  // ログイン画面を出さずに本人確認をするための仕組み。
+  claimedByUid: string | null;
 }
