@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 
 export function Header() {
-  const { user, loading, isAdmin, signOut } = useAuth();
+  const { user, loading, isAdmin, authError, signOut } = useAuth();
 
   return (
     <header className="header">
@@ -43,6 +43,19 @@ export function Header() {
           </nav>
         )}
       </div>
+      {authError && (
+        <div
+          style={{
+            background: "var(--status-editing-bg)",
+            color: "var(--status-editing)",
+            fontSize: "0.82rem",
+            padding: "0.5rem 1.5rem",
+            textAlign: "center",
+          }}
+        >
+          通信状況により接続できませんでした。お手数ですが、ページを再読み込みしてください。
+        </div>
+      )}
     </header>
   );
 }

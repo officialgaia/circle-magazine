@@ -8,7 +8,7 @@ import {
   addRosterMember,
   deleteBookletSection,
   deleteRosterMember,
-  downloadSubmissionFile,
+  getSubmissionDownloadUrl,
   listBookletSections,
   listRoster,
   listSubmissions,
@@ -20,29 +20,28 @@ import { GRADE_OPTIONS, type BookletSection, type Grade, type RosterEntry, type 
 
 function SubmissionsPanel({ issueId }: { issueId: string }) {
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [urls, setUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
     listSubmissions(issueId)
-      .then(setSubmissions)
+      .then(async (list) => {
+        setSubmissions(list);
+        const entries = await Promise.all(
+          list.map(async (s) => {
+            const url = await getSubmissionDownloadUrl(s.storagePath);
+            return [s.id, url] as const;
+          }),
+        );
+        setUrls(Object.fromEntries(entries));
+      })
       .catch(() => setError("投稿一覧を取得できませんでした。"));
   }
   useEffect(refresh, [issueId]);
 
-  async function handleDownload(s: Submission) {
-    setDownloadingId(s.id);
-    setError(null);
-    try {
-      await downloadSubmissionFile(s.storagePath, s.fileName);
-      if (!s.downloadedByAdmin) {
-        await markSubmissionDownloaded(issueId, s.id);
-        refresh();
-      }
-    } catch {
-      setError("ダウンロードに失敗しました。");
-    } finally {
-      setDownloadingId(null);
+  function handleDownloadClick(s: Submission) {
+    if (!s.downloadedByAdmin) {
+      markSubmissionDownloaded(issueId, s.id).then(refresh).catch(() => {});
     }
   }
 
@@ -81,14 +80,18 @@ function SubmissionsPanel({ issueId }: { issueId: string }) {
                 )}
               </span>
             </span>
-            <button
-              type="button"
-              className="button-outline"
-              disabled={downloadingId === s.id}
-              onClick={() => handleDownload(s)}
-            >
-              {downloadingId === s.id ? "ダウンロード中…" : "ダウンロード"}
-            </button>
+            {urls[s.id] ? (
+              <a
+                href={urls[s.id]}
+                download={s.fileName}
+                className="button-outline"
+                onClick={() => handleDownloadClick(s)}
+              >
+                ダウンロード
+              </a>
+            ) : (
+              <span className="muted" style={{ fontSize: "0.8rem" }}>取得中…</span>
+            )}
           </li>
         ))}
       </ul>

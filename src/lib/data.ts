@@ -15,7 +15,6 @@ import {
 } from "firebase/firestore";
 import {
   deleteObject,
-  getBytes,
   getDownloadURL,
   ref,
   uploadBytes,
@@ -45,12 +44,6 @@ function bookletCol(issueId: string) {
 
 function rosterCol(issueId: string) {
   return collection(db, "issues", issueId, "roster");
-}
-
-// ブラウザでその場で開いて閲覧できるよう、Content-Dispositionを
-// inline にしてアップロードする(ダウンロードしたい場合は<a download>側で指定する)。
-function inlineDisposition(fileName: string): string {
-  return `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
 // ----- 号 -----
@@ -169,7 +162,6 @@ export async function createSubmission(params: {
 
   await uploadBytes(ref(storage, storagePath), file, {
     contentType: file.type,
-    contentDisposition: inlineDisposition(file.name),
   });
 
   await setDoc(existingRef, {
@@ -192,25 +184,6 @@ export async function getSubmissionDownloadUrl(
   storagePath: string,
 ): Promise<string> {
   return getDownloadURL(ref(storage, storagePath));
-}
-
-// 管理者専用。投稿ファイルは閲覧用(inline)でアップロードしているため、
-// 単純にリンクを踏むだけでは(ブラウザやファイル形式によっては)開くだけに
-// なってしまう。SDK でファイルの中身を取得し、ブラウザ内でBlobとして
-// ダウンロードさせることで、確実に保存ダイアログを出す。
-export async function downloadSubmissionFile(
-  storagePath: string,
-  fileName: string,
-): Promise<void> {
-  const bytes = await getBytes(ref(storage, storagePath));
-  const blobUrl = URL.createObjectURL(new Blob([bytes]));
-  const a = document.createElement("a");
-  a.href = blobUrl;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(blobUrl);
 }
 
 export async function markSubmissionDownloaded(
@@ -284,7 +257,6 @@ export async function addBookletSection(params: {
 
   await uploadBytes(ref(storage, pdfStoragePath), file, {
     contentType: "application/pdf",
-    contentDisposition: inlineDisposition(file.name),
   });
 
   await setDoc(sectionRef, {
