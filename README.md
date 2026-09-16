@@ -87,7 +87,17 @@ cp .firebaserc.example .firebaserc   # projects.default を自分のプロジェ
 firebase deploy --only firestore:rules,storage:rules
 ```
 
-### 6. 開発サーバー起動
+### 6. StorageのCORS設定
+
+管理画面の「ダウンロード」は、ブラウザ内でファイルの中身を取得してから保存させる方式です(単純なリンクではPDFがそのまま開いてしまうため)。この方式ではStorageバケットにCORSの設定が必要です。リポジトリ直下の `cors.json` を使い、[Google Cloudコンソール](https://console.cloud.google.com/) 右上の Cloud Shell か、ローカルの gcloud CLI で一度だけ実行します。
+
+```bash
+gcloud storage buckets update gs://<バケット名> --cors-file=cors.json
+```
+
+バケット名は `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` の値(例: `your-project.firebasestorage.app`)です。Cloud Shellで実行する場合は、先に `cors.json` を同じ内容で作成してください。設定しないと、ダウンロード時に「ダウンロードに失敗しました」と表示されます(読み取り権限自体はStorageルールで引き続き保護されます)。
+
+### 7. 開発サーバー起動
 
 ```bash
 npm run dev

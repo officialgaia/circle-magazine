@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import {
   deleteObject,
+  getBlob,
   getDownloadURL,
   ref,
   uploadBytes,
@@ -191,6 +192,26 @@ export async function getSubmissionDownloadUrl(
   storagePath: string,
 ): Promise<string> {
   return getDownloadURL(ref(storage, storagePath));
+}
+
+// 管理者専用。<a download> はStorageのような別オリジンのURLには効かず、
+// ブラウザがPDFをそのまま開いてしまう。SDKで中身を取得してBlobにし、
+// 同一オリジンのURLとして保存させることで、確実にダウンロード動作にする。
+// (Storageバケットに cors.json の設定が必要。READMEを参照)
+export async function downloadSubmissionFile(
+  storagePath: string,
+  fileName: string,
+): Promise<void> {
+  const blob = await getBlob(ref(storage, storagePath));
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Safariはクリック直後に revoke するとダウンロードが中断されることがある
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
 export async function markSubmissionDownloaded(
