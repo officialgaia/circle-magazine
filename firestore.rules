@@ -27,20 +27,26 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
 
-      // 投稿された生ファイルの情報。1人1件まで(ドキュメントID=投稿者のuid)。
-      // 本人と管理者のみ閲覧できる。本人判定はドキュメントIDで行う。
-      // (resource.data で判定すると、まだ投稿していない人が自分の投稿の有無を
-      //  確認しようとした時点で resource が存在せず権限エラーになるため)
+      // 名簿の行 rosterId を、今このブラウザ(uid)が「自分」として選んでいるか。
+      // 本人識別はすべてこれに基づく(uidそのものには紐づけない)。
+      function ownsRoster(rosterId) {
+        return isSignedIn() &&
+          get(/databases/$(database)/documents/issues/$(issueId)/roster/$(rosterId))
+            .data.claimedByUid == request.auth.uid;
+      }
+
+      // 投稿された生ファイルの情報。1人1件まで(ドキュメントID=名簿の行のID)。
+      // その行を選んでいる本人と管理者のみ閲覧できる。ブラウザの保存が消えて
+      // uidが変わっても、名簿で同じ名前を選び直せば再び自分の投稿として扱われる。
       match /submissions/{submissionId} {
-        allow read: if isAdmin() ||
-          (isSignedIn() && submissionId == request.auth.uid);
-        allow create: if isSignedIn() &&
-          submissionId == request.auth.uid &&
+        allow read: if isAdmin() || ownsRoster(submissionId);
+        allow create: if ownsRoster(submissionId) &&
+          request.resource.data.rosterId == submissionId &&
           request.resource.data.submitterUid == request.auth.uid &&
           request.resource.data.format in ['pdf', 'docx'];
         allow update: if isAdmin() || (
-          isSignedIn() &&
-          submissionId == request.auth.uid &&
+          ownsRoster(submissionId) &&
+          request.resource.data.rosterId == submissionId &&
           request.resource.data.submitterUid == request.auth.uid &&
           request.resource.data.format in ['pdf', 'docx']
         );
@@ -48,18 +54,19 @@ service cloud.firestore {
       }
 
       // 完成した冊子セクション。非公開(locked)のセクションは、
-      // 投稿者本人(ownerUid)と管理者にしか見えない。編集は管理者のみ。
+      // 投稿者本人(ownerRosterId の行を選んでいる人)と管理者にしか見えない。編集は管理者のみ。
       match /booklet/{sectionId} {
         allow read: if isAdmin() ||
           (isSignedIn() && resource.data.locked == false) ||
-          (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+          (isSignedIn() && resource.data.ownerRosterId != null &&
+            ownsRoster(resource.data.ownerRosterId));
         allow write: if isAdmin();
       }
 
       // 名簿。閲覧はメンバー全員(匿名可)。
       // 「自分の行」は claimedByUid で識別する(ログイン画面の代わり)。
-      // 未選択の行を自分の行として選ぶ、または既に自分の行になっている場合のみ、
-      // submitted・claimedByUid を更新できる(投稿時の自動チェックと本人選択用)。
+      // 自分の行として選ぶ(既に別のuidが選んでいる行も、引き継ぎのため選び直せる)、
+      // または既に自分の行になっている場合のみ、submitted・claimedByUid を更新できる。
       match /roster/{rosterId} {
         allow read: if isSignedIn();
         allow create, delete: if isAdmin();
@@ -67,8 +74,7 @@ service cloud.firestore {
           isSignedIn() &&
           (
             resource.data.claimedByUid == request.auth.uid ||
-            (resource.data.claimedByUid == null &&
-              request.resource.data.claimedByUid == request.auth.uid)
+            request.resource.data.claimedByUid == request.auth.uid
           ) &&
           request.resource.data.name == resource.data.name &&
           request.resource.data.diff(resource.data).affectedKeys()

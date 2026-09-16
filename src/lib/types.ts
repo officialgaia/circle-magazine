@@ -11,6 +11,8 @@ export type SubmissionFormat = "pdf" | "docx";
 
 export interface Submission {
   id: string;
+  // 投稿は名簿の行(人)ごとに1件。ドキュメントIDも rosterId に固定する。
+  rosterId: string;
   submitterName: string;
   submitterUid: string;
   format: SubmissionFormat;
@@ -29,7 +31,8 @@ export interface BookletSection {
   fileName: string;
   sourceSubmissionId: string | null;
   locked: boolean;
-  ownerUid: string | null;
+  // 非公開セクションを見られる本人を、名簿の行で指定する。
+  ownerRosterId: string | null;
   ownerName: string | null;
 }
 
@@ -49,7 +52,8 @@ export interface RosterEntry {
   name: string;
   grade: Grade | "";
   submitted: boolean;
-  // このブラウザ(匿名認証のuid)が「自分の行」として選択済みかどうか。
-  // ログイン画面を出さずに本人確認をするための仕組み。
+  // この行を「自分」として選んでいるブラウザ(匿名認証のuid)。
+  // ブラウザを変えたり、保存が消えたりしても、同じ名前を選び直せば
+  // 新しいuidに引き継がれ、投稿もそのまま見られる。
   claimedByUid: string | null;
 }

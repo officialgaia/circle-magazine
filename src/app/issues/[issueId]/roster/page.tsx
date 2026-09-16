@@ -64,7 +64,7 @@ export default function RosterPage() {
 
       {roster !== null && !myEntry && !isAdmin && (
         <p className="muted" style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
-          自分の名前の行の「これは自分です」を押すと、以降このブラウザで自分の欄として提出状況の確認ができるようになります。
+          自分の名前の行の「これは自分です」を押すと、このブラウザで投稿できるようになります。端末やブラウザを変えたときも、同じ名前を選び直せば投稿は引き継がれます。
         </p>
       )}
 
@@ -89,7 +89,7 @@ export default function RosterPage() {
                   <td>
                     {isMine ? (
                       <span className="muted" style={{ fontSize: "0.8rem" }}>自分</span>
-                    ) : !myEntry && !entry.claimedByUid && !isAdmin ? (
+                    ) : !myEntry && !isAdmin ? (
                       <button
                         type="button"
                         className="button-outline"

@@ -38,9 +38,8 @@ export default function SubmitPage() {
       .catch((err) => setError(`名簿を取得できませんでした。(${errorDetail(err)})`));
   }
 
-  function refreshSubmission() {
-    if (!user) return;
-    getMySubmission(issueId, user.uid)
+  function refreshSubmission(rosterId: string) {
+    getMySubmission(issueId, rosterId)
       .then(async (submission) => {
         setMySubmission(submission);
         if (submission) {
@@ -56,11 +55,18 @@ export default function SubmitPage() {
   useEffect(() => {
     if (authLoading || isAdmin) return;
     refreshRoster();
-    refreshSubmission();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issueId, authLoading, isAdmin, user?.uid]);
 
   const myEntry = roster?.find((r) => r.claimedByUid === user?.uid) ?? null;
+  const myRosterId = myEntry?.id ?? null;
+
+  // 投稿は名簿の行に紐づくので、自分の行が分かってから取得する。
+  useEffect(() => {
+    if (!myRosterId) return;
+    refreshSubmission(myRosterId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issueId, myRosterId]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -86,7 +92,7 @@ export default function SubmitPage() {
       setLocked(false);
       const input = document.getElementById("file-input") as HTMLInputElement | null;
       if (input) input.value = "";
-      refreshSubmission();
+      refreshSubmission(myEntry.id);
       refreshRoster();
     } catch (err) {
       setError(`投稿に失敗しました。もう一度お試しください。(${errorDetail(err)})`);

@@ -13,20 +13,28 @@ service firebase.storage {
           .data.adminEmails.hasAny([request.auth.token.email]);
     }
 
-    // 投稿された生ファイル。アップロード者本人のUIDでフォルダを分け、
-    // 本人と管理者のみ読み書きできるようにする(他人の生ファイルはDL不可)。
-    match /issues/{issueId}/submissions/{uid}/{fileName} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
-      allow write: if isSignedIn() && request.auth.uid == uid &&
+    // 名簿の行 rosterId を、今このブラウザ(uid)が「自分」として選んでいるか。
+    function ownsRoster(issueId, rosterId) {
+      return isSignedIn() &&
+        firestore.get(
+          /databases/(default)/documents/issues/$(issueId)/roster/$(rosterId)
+        ).data.claimedByUid == request.auth.uid;
+    }
+
+    // 投稿された生ファイル。名簿の行のIDでフォルダを分け、
+    // その行を選んでいる本人と管理者のみ読み書きできるようにする(他人の生ファイルはDL不可)。
+    match /issues/{issueId}/submissions/{rosterId}/{fileName} {
+      allow read: if isAdmin() || ownsRoster(issueId, rosterId);
+      allow write: if ownsRoster(issueId, rosterId) &&
         request.resource.size < 20 * 1024 * 1024 &&
         request.resource.contentType.matches(
           'application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document'
         );
-      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow delete: if isAdmin() || ownsRoster(issueId, rosterId);
     }
 
     // 完成した冊子セクションのPDF。セクションIDでフォルダを分け、
-    // Firestore側のドキュメント(locked / ownerUid)を参照して、
+    // Firestore側のドキュメント(locked / ownerRosterId)を参照して、
     // 非公開セクションのファイルは投稿者本人と管理者にしか読めないようにする。
     match /issues/{issueId}/booklet/{sectionId}/{fileName} {
       function section() {
@@ -37,7 +45,8 @@ service firebase.storage {
 
       allow read: if isAdmin() ||
         (isSignedIn() && section().locked == false) ||
-        (isSignedIn() && section().ownerUid == request.auth.uid);
+        (isSignedIn() && section().ownerRosterId != null &&
+          ownsRoster(issueId, section().ownerRosterId));
       allow write: if isAdmin() &&
         request.resource.size < 50 * 1024 * 1024 &&
         request.resource.contentType == 'application/pdf';

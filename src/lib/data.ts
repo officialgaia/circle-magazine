@@ -106,6 +106,7 @@ function toSubmission(id: string, data: Record<string, unknown>): Submission {
   const submittedAt = data.submittedAt as Timestamp | null;
   return {
     id,
+    rosterId: (data.rosterId as string | undefined) ?? id,
     submitterName: data.submitterName as string,
     submitterUid: data.submitterUid as string,
     format: data.format as SubmissionFormat,
@@ -125,13 +126,15 @@ export async function listSubmissions(issueId: string): Promise<Submission[]> {
   return snap.docs.map((d) => toSubmission(d.id, d.data()));
 }
 
-// 自分(このブラウザ)が今投稿しているものを取得する。1人1件までなので
-// ドキュメントIDをuidに固定しており、直接取得できる。
+// 自分(名簿で選んだ行)の今の投稿を取得する。1人1件までなので
+// ドキュメントIDを rosterId に固定しており、直接取得できる。
+// uidではなく名簿の行に紐づけることで、ブラウザの保存が消えて
+// 匿名認証のuidが変わっても、同じ名前を選び直せば投稿を引き継げる。
 export async function getMySubmission(
   issueId: string,
-  uid: string,
+  rosterId: string,
 ): Promise<Submission | null> {
-  const snap = await getDoc(doc(submissionsCol(issueId), uid));
+  const snap = await getDoc(doc(submissionsCol(issueId), rosterId));
   return snap.exists() ? toSubmission(snap.id, snap.data()) : null;
 }
 
@@ -155,9 +158,9 @@ export async function createSubmission(params: {
     : lowerName.endsWith(".doc")
       ? "application/msword"
       : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  const storagePath = `issues/${issueId}/submissions/${uid}/${file.name}`;
+  const storagePath = `issues/${issueId}/submissions/${rosterId}/${file.name}`;
 
-  const existingRef = doc(submissionsCol(issueId), uid);
+  const existingRef = doc(submissionsCol(issueId), rosterId);
   const existing = await getDoc(existingRef);
   if (existing.exists()) {
     const oldPath = existing.data().storagePath as string;
@@ -173,6 +176,7 @@ export async function createSubmission(params: {
   });
 
   await setDoc(existingRef, {
+    rosterId,
     submitterName,
     submitterUid: uid,
     format,
@@ -234,19 +238,19 @@ function toBookletSection(id: string, data: Record<string, unknown>): BookletSec
     fileName: data.fileName as string,
     sourceSubmissionId: (data.sourceSubmissionId as string | null) ?? null,
     locked: Boolean(data.locked),
-    ownerUid: (data.ownerUid as string | null) ?? null,
+    ownerRosterId: (data.ownerRosterId as string | null) ?? null,
     ownerName: (data.ownerName as string | null) ?? null,
   };
 }
 
-// 非公開(locked)セクションは、投稿者本人(ownerUid)と管理者にしか見えない。
-// Firestoreのクエリは「ルール上返せることが保証できる範囲」しか実行できないため、
-// 管理者は無条件の一覧取得、一般メンバーは
+// 非公開(locked)セクションは、投稿者本人(ownerRosterId の行を選んでいる人)と
+// 管理者にしか見えない。Firestoreのクエリは「ルール上返せることが保証できる範囲」
+// しか実行できないため、管理者は無条件の一覧取得、一般メンバーは
 // 「公開セクション」「自分が投稿者のセクション」の2クエリに分けて取得し、マージする。
 // (等値条件のみのクエリにして複合インデックスを不要にし、並び順はクライアント側でソートする)
 export async function listBookletSections(
   issueId: string,
-  viewer: { isAdmin: boolean; uid: string | null },
+  viewer: { isAdmin: boolean; rosterId: string | null },
 ): Promise<BookletSection[]> {
   if (viewer.isAdmin) {
     const snap = await getDocs(query(bookletCol(issueId), orderBy("order", "asc")));
@@ -259,11 +263,16 @@ export async function listBookletSections(
   const byId = new Map<string, BookletSection>();
   publicSnap.docs.forEach((d) => byId.set(d.id, toBookletSection(d.id, d.data())));
 
-  if (viewer.uid) {
-    const ownSnap = await getDocs(
-      query(bookletCol(issueId), where("ownerUid", "==", viewer.uid)),
-    );
-    ownSnap.docs.forEach((d) => byId.set(d.id, toBookletSection(d.id, d.data())));
+  if (viewer.rosterId) {
+    // 自分の非公開セクションが取れなくても、公開分の表示は妨げない。
+    try {
+      const ownSnap = await getDocs(
+        query(bookletCol(issueId), where("ownerRosterId", "==", viewer.rosterId)),
+      );
+      ownSnap.docs.forEach((d) => byId.set(d.id, toBookletSection(d.id, d.data())));
+    } catch {
+      // 無視
+    }
   }
 
   return Array.from(byId.values()).sort((a, b) => a.order - b.order);
@@ -294,7 +303,7 @@ export async function addBookletSection(params: {
     fileName: file.name,
     sourceSubmissionId: sourceSubmission?.id ?? null,
     locked: sourceSubmission?.locked ?? false,
-    ownerUid: sourceSubmission?.submitterUid ?? null,
+    ownerRosterId: sourceSubmission?.rosterId ?? null,
     ownerName: sourceSubmission?.submitterName ?? null,
   });
 }
@@ -342,6 +351,9 @@ export async function listRoster(issueId: string): Promise<RosterEntry[]> {
 }
 
 // 名簿の中から自分の行を選択する(ログイン画面の代わりの本人識別)。
+// 既に別のuidが選んでいる行でも選び直せる(ブラウザの保存が消えて
+// uidが変わった場合の引き継ぎ用。名簿を使うのはサークル内のメンバーだけ
+// という前提で、最初の選択と同じ信頼度にしている)。
 export async function claimRosterEntry(
   issueId: string,
   rosterId: string,

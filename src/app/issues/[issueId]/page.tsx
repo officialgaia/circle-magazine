@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { getBookletFileUrl, listBookletSections } from "@/lib/data";
+import { getBookletFileUrl, listBookletSections, listRoster } from "@/lib/data";
 import type { BookletSection } from "@/lib/types";
 
 export default function BookletViewerPage() {
@@ -16,7 +16,20 @@ export default function BookletViewerPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    listBookletSections(issueId, { isAdmin, uid: user?.uid ?? null })
+    // 非公開セクションを本人に見せるため、名簿で選んでいる自分の行を先に調べる。
+    // (名簿が取れなくても公開分の表示は妨げない)
+    const uid = user?.uid ?? null;
+    const findMyRosterId = async (): Promise<string | null> => {
+      if (isAdmin || !uid) return null;
+      try {
+        const roster = await listRoster(issueId);
+        return roster.find((r) => r.claimedByUid === uid)?.id ?? null;
+      } catch {
+        return null;
+      }
+    };
+    findMyRosterId()
+      .then((rosterId) => listBookletSections(issueId, { isAdmin, rosterId }))
       .then(async (list) => {
         setSections(list);
         // 非公開のセクションはそもそも閲覧ボタンを出さないため、URL取得も不要。

@@ -31,9 +31,11 @@
 
 - `config/adminEmails` — 管理者メールアドレスの配列(`adminEmails`)
 - `issues/{issueId}` — 号(`year` / `title` / `status`)
-  - `submissions/{uid}` — メンバーがアップロードした生ファイル(ドキュメントIDを投稿者のuidに固定し、1人1件までに制限)
-  - `booklet/{sectionId}` — 管理者が構成した、完成した冊子のセクション
-  - `roster/{rosterId}` — 名簿(`name` / `grade` / `submitted` / `note` / `claimedByUid`)
+  - `submissions/{rosterId}` — メンバーがアップロードした生ファイル(ドキュメントIDを名簿の行のIDに固定し、1人1件までに制限)
+  - `booklet/{sectionId}` — 管理者が構成した、完成した冊子のセクション(非公開のものは `ownerRosterId` の行を選んでいる本人と管理者のみ閲覧可)
+  - `roster/{rosterId}` — 名簿(`name` / `grade` / `submitted` / `claimedByUid`)
+
+本人識別は、名簿の行を「自分」として選んだブラウザの匿名認証uid(`claimedByUid`)で行います。投稿や非公開セクションはuidではなく名簿の行に紐づくため、ブラウザの保存が消えてuidが変わっても、同じ名前を選び直せばそのまま引き継がれます(名簿を使うのはサークル内のメンバーだけ、という前提の設計です)。
 
 投稿(submissions)と冊子(booklet)を分けて持つのがポイントです。メンバーが上げた生ファイルがそのまま冊子になるのではなく、管理者がダウンロード→PDF化→セクションとして追加する運用を想定しています。
 

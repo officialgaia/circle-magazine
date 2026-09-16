@@ -107,7 +107,7 @@ function BookletPanel({ issueId }: { issueId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
-    listBookletSections(issueId, { isAdmin: true, uid: null })
+    listBookletSections(issueId, { isAdmin: true, rosterId: null })
       .then(setSections)
       .catch(() => setError("セクション一覧を取得できませんでした。"));
     listSubmissions(issueId).then(setSubmissions).catch(() => {});
