@@ -24,7 +24,9 @@ interface AuthValue {
   loading: boolean;
   isAdmin: boolean;
   authError: boolean;
-  signInWithGoogle: () => Promise<void>;
+  // 管理者として登録されていないアカウントだった場合は即座にサインアウトし、
+  // admin: false と、その時のメールアドレスを返す(ログイン画面で失敗表示に使う)。
+  signInWithGoogle: () => Promise<{ admin: boolean; email: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -89,7 +91,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin,
       authError,
       signInWithGoogle: async () => {
-        await signInWithPopup(auth, new GoogleAuthProvider());
+        const result = await signInWithPopup(auth, new GoogleAuthProvider());
+        const email = result.user.email;
+        const admin = await checkIsAdmin(email);
+        if (!admin) {
+          await firebaseSignOut(auth);
+        }
+        return { admin, email };
       },
       signOut: async () => {
         await firebaseSignOut(auth);

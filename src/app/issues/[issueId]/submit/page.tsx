@@ -3,8 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import Link from "next/link";
 import {
-  claimRosterEntry,
   createSubmission,
   getMySubmission,
   getSubmissionDownloadUrl,
@@ -24,7 +24,6 @@ export default function SubmitPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
 
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
-  const [claiming, setClaiming] = useState<string | null>(null);
   const [mySubmission, setMySubmission] = useState<Submission | null | undefined>(undefined);
   const [myUrl, setMyUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -62,25 +61,6 @@ export default function SubmitPage() {
   }, [issueId, authLoading, isAdmin, user?.uid]);
 
   const myEntry = roster?.find((r) => r.claimedByUid === user?.uid) ?? null;
-
-  async function handleClaim(rosterId: string) {
-    if (!user) {
-      setError("接続が完了していません。ページを再読み込みしてからお試しください。");
-      return;
-    }
-    setClaiming(rosterId);
-    setError(null);
-    try {
-      await claimRosterEntry(issueId, rosterId, user.uid);
-      refreshRoster();
-    } catch (err) {
-      setError(
-        `選択に失敗しました。すでに他の人が選んでいる可能性があります。(${errorDetail(err)})`,
-      );
-    } finally {
-      setClaiming(null);
-    }
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -131,30 +111,11 @@ export default function SubmitPage() {
       <div>
         <h2 style={{ fontSize: "1.15rem", marginBottom: "1rem" }}>原稿の投稿</h2>
         <p className="muted" style={{ fontSize: "0.9rem", marginBottom: "1rem" }}>
-          投稿する前に、名簿から自分の名前を選んでください。
+          投稿するには、先に名簿で自分の名前を選んでください。選ぶと、このブラウザではその名前で投稿できるようになります。
         </p>
-        <ul style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {roster.map((entry) => (
-            <li
-              key={entry.id}
-              className="card"
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-            >
-              <span>
-                {entry.name}
-                {entry.grade && <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.85rem" }}>{entry.grade}</span>}
-              </span>
-              <button
-                type="button"
-                className="button-outline"
-                disabled={!!entry.claimedByUid || claiming === entry.id}
-                onClick={() => handleClaim(entry.id)}
-              >
-                {entry.claimedByUid ? "選択済み" : "これは自分です"}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <Link href={`/issues/${issueId}/roster`} className="button">
+          名簿で自分の名前を選ぶ
+        </Link>
         {error && <p style={{ color: "var(--danger)", fontSize: "0.85rem", marginTop: "1rem" }}>{error}</p>}
       </div>
     );
