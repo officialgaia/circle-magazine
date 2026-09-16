@@ -3,10 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { RequireAuth } from "@/components/RequireAuth";
-import { createIssue, listIssues, updateIssueStatus } from "@/lib/data";
-import type { Issue, IssueStatus } from "@/lib/types";
-
-const STATUSES: IssueStatus[] = ["受付中", "編集中", "公開"];
+import { createIssue, deleteIssue, listIssues } from "@/lib/data";
+import type { Issue } from "@/lib/types";
 
 function AdminOverviewInner() {
   const [issues, setIssues] = useState<Issue[] | null>(null);
@@ -14,6 +12,7 @@ function AdminOverviewInner() {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function refresh() {
     listIssues().then(setIssues).catch(() => setError("号の一覧を取得できませんでした。"));
@@ -36,12 +35,20 @@ function AdminOverviewInner() {
     }
   }
 
-  async function handleStatusChange(issue: Issue, status: IssueStatus) {
+  async function handleDelete(issue: Issue) {
+    const ok = window.confirm(
+      `${issue.year}年号「${issue.title}」を削除します。投稿・冊子・名簿もすべて削除され、元に戻せません。よろしいですか?`,
+    );
+    if (!ok) return;
+    setDeletingId(issue.id);
+    setError(null);
     try {
-      await updateIssueStatus(issue.id, status);
+      await deleteIssue(issue.id);
       refresh();
     } catch {
-      setError("状態の更新に失敗しました。");
+      setError("削除に失敗しました。");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -92,16 +99,14 @@ function AdminOverviewInner() {
                 <span style={{ fontFamily: "var(--font-serif)" }}>{issue.year}年号</span>
                 <span className="muted" style={{ marginLeft: "0.6rem", fontSize: "0.9rem" }}>{issue.title}</span>
               </Link>
-              <select
-                className="input"
-                style={{ width: "auto" }}
-                value={issue.status}
-                onChange={(e) => handleStatusChange(issue, e.target.value as IssueStatus)}
+              <button
+                type="button"
+                className="button-outline"
+                disabled={deletingId === issue.id}
+                onClick={() => handleDelete(issue)}
               >
-                {STATUSES.map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
+                {deletingId === issue.id ? "削除中…" : "削除"}
+              </button>
             </li>
           ))}
         </ul>

@@ -74,11 +74,35 @@ export async function createIssue(input: {
   return created.id;
 }
 
-export async function updateIssueStatus(
-  issueId: string,
-  status: IssueStatus,
-): Promise<void> {
-  await updateDoc(doc(db, "issues", issueId), { status });
+// 号を削除する。投稿・冊子セクションはStorage上のファイルも含めて削除し、
+// 名簿とあわせて号そのものも削除する(Firestoreはサブコレクションを
+// 自動では削除しないため、明示的にすべて削除して回る)。
+export async function deleteIssue(issueId: string): Promise<void> {
+  const [submissionsSnap, bookletSnap, rosterSnap] = await Promise.all([
+    getDocs(submissionsCol(issueId)),
+    getDocs(bookletCol(issueId)),
+    getDocs(rosterCol(issueId)),
+  ]);
+
+  await Promise.all(
+    submissionsSnap.docs.map(async (d) => {
+      const storagePath = d.data().storagePath as string;
+      await deleteObject(ref(storage, storagePath)).catch(() => {});
+      await deleteDoc(d.ref);
+    }),
+  );
+
+  await Promise.all(
+    bookletSnap.docs.map(async (d) => {
+      const pdfStoragePath = d.data().pdfStoragePath as string;
+      await deleteObject(ref(storage, pdfStoragePath)).catch(() => {});
+      await deleteDoc(d.ref);
+    }),
+  );
+
+  await Promise.all(rosterSnap.docs.map((d) => deleteDoc(d.ref)));
+
+  await deleteDoc(doc(db, "issues", issueId));
 }
 
 // ----- 投稿 -----
