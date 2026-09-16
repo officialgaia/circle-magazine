@@ -12,7 +12,7 @@ import {
   Timestamp,
   updateDoc,
   where,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import {
   deleteObject,
   getBlob,
