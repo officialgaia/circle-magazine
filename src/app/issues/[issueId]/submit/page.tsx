@@ -10,6 +10,7 @@ import {
   listMySubmissions,
   listRoster,
 } from "@/lib/data";
+import { triggerDownload } from "@/lib/download";
 import type { RosterEntry, Submission } from "@/lib/types";
 
 export default function SubmitPage() {
@@ -93,14 +94,10 @@ export default function SubmitPage() {
   async function handleOpen(submission: Submission) {
     setOpeningId(submission.id);
     setError(null);
-    // Safariは「クリックの後にawaitを挟んでからwindow.open」だとポップアップとして
-    // ブロックしてしまうため、まず空のタブを同期的に開いてからURLを差し込む。
-    const win = window.open("", "_blank");
     try {
       const url = await getSubmissionDownloadUrl(submission.storagePath);
-      if (win) win.location.href = url;
+      triggerDownload(url, submission.fileName);
     } catch {
-      win?.close();
       setError("ファイルを開けませんでした。");
     } finally {
       setOpeningId(null);
@@ -181,7 +178,7 @@ export default function SubmitPage() {
 
       <h3 style={{ fontSize: "1rem", margin: "1.75rem 0 0.75rem" }}>自分の投稿履歴</h3>
       <p className="muted" style={{ fontSize: "0.8rem", marginBottom: "0.75rem" }}>
-        自分が投稿したファイルは、いつでもここから開いて確認できます。他のメンバーからは見えません。
+        自分が投稿したファイルは、いつでもここからダウンロードして確認できます。他のメンバーからは見えません。
       </p>
       {mySubmissions === null && <p className="muted" style={{ fontSize: "0.9rem" }}>読み込み中…</p>}
       {mySubmissions !== null && mySubmissions.length === 0 && (
@@ -210,7 +207,7 @@ export default function SubmitPage() {
               </span>
             </span>
             <span className="button-outline" style={{ pointerEvents: "none" }}>
-              {openingId === s.id ? "開いています…" : "開く"}
+              {openingId === s.id ? "ダウンロード中…" : "ダウンロード"}
             </span>
           </li>
         ))}

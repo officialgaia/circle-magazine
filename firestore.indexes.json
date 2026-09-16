@@ -1,21 +1,4 @@
 {
-  "indexes": [
-    {
-      "collectionGroup": "booklet",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "locked", "order": "ASCENDING" },
-        { "fieldPath": "order", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "booklet",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "ownerUid", "order": "ASCENDING" },
-        { "fieldPath": "order", "order": "ASCENDING" }
-      ]
-    }
-  ],
+  "indexes": [],
   "fieldOverrides": []
 }

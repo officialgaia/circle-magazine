@@ -46,6 +46,12 @@ function rosterCol(issueId: string) {
   return collection(db, "issues", issueId, "roster");
 }
 
+// ブラウザでの直接ダウンロード(新規タブで開かず保存ダイアログになる)を
+// 強制するため、Content-Dispositionヘッダーを付けてアップロードする。
+function attachmentDisposition(fileName: string): string {
+  return `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
 // ----- 号 -----
 
 export async function listIssues(): Promise<Issue[]> {
@@ -128,6 +134,7 @@ export async function createSubmission(params: {
 
   await uploadBytes(ref(storage, storagePath), file, {
     contentType: file.type,
+    contentDisposition: attachmentDisposition(file.name),
   });
 
   await addDoc(submissionsCol(issueId), {
@@ -171,6 +178,7 @@ function toBookletSection(id: string, data: Record<string, unknown>): BookletSec
 // Firestoreのクエリは「ルール上返せることが保証できる範囲」しか実行できないため、
 // 管理者は無条件の一覧取得、一般メンバーは
 // 「公開セクション」「自分が投稿者のセクション」の2クエリに分けて取得し、マージする。
+// (等値条件のみのクエリにして複合インデックスを不要にし、並び順はクライアント側でソートする)
 export async function listBookletSections(
   issueId: string,
   viewer: { isAdmin: boolean; uid: string | null },
@@ -181,18 +189,14 @@ export async function listBookletSections(
   }
 
   const publicSnap = await getDocs(
-    query(bookletCol(issueId), where("locked", "==", false), orderBy("order", "asc")),
+    query(bookletCol(issueId), where("locked", "==", false)),
   );
   const byId = new Map<string, BookletSection>();
   publicSnap.docs.forEach((d) => byId.set(d.id, toBookletSection(d.id, d.data())));
 
   if (viewer.uid) {
     const ownSnap = await getDocs(
-      query(
-        bookletCol(issueId),
-        where("ownerUid", "==", viewer.uid),
-        orderBy("order", "asc"),
-      ),
+      query(bookletCol(issueId), where("ownerUid", "==", viewer.uid)),
     );
     ownSnap.docs.forEach((d) => byId.set(d.id, toBookletSection(d.id, d.data())));
   }
@@ -216,6 +220,7 @@ export async function addBookletSection(params: {
 
   await uploadBytes(ref(storage, pdfStoragePath), file, {
     contentType: "application/pdf",
+    contentDisposition: attachmentDisposition(file.name),
   });
 
   await setDoc(sectionRef, {
@@ -272,18 +277,6 @@ export async function listRoster(issueId: string): Promise<RosterEntry[]> {
   return snap.docs.map((d) => toRosterEntry(d.id, d.data()));
 }
 
-// このブラウザ(uid)が既に「自分の行」として選択済みの名簿行を探す。
-export async function findMyRosterEntry(
-  issueId: string,
-  uid: string,
-): Promise<RosterEntry | null> {
-  const snap = await getDocs(
-    query(rosterCol(issueId), where("claimedByUid", "==", uid)),
-  );
-  const first = snap.docs[0];
-  return first ? toRosterEntry(first.id, first.data()) : null;
-}
-
 // 名簿の中から自分の行を選択する(ログイン画面の代わりの本人識別)。
 export async function claimRosterEntry(
   issueId: string,
@@ -313,16 +306,6 @@ export async function updateRosterMemberByAdmin(
   input: { name: string; grade: Grade | ""; submitted: boolean },
 ): Promise<void> {
   await updateDoc(doc(db, "issues", issueId, "roster", rosterId), input);
-}
-
-// 誤って選択された場合などに、管理者が「自分の行」の指定を解除する。
-export async function resetRosterClaim(
-  issueId: string,
-  rosterId: string,
-): Promise<void> {
-  await updateDoc(doc(db, "issues", issueId, "roster", rosterId), {
-    claimedByUid: null,
-  });
 }
 
 export async function deleteRosterMember(

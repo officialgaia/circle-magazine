@@ -3,11 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import {
-  getBookletFileUrl,
-  listBookletSections,
-  updateBookletSectionOrder,
-} from "@/lib/data";
+import { getBookletFileUrl, listBookletSections } from "@/lib/data";
 import type { BookletSection } from "@/lib/types";
 
 export default function BookletViewerPage() {
@@ -18,7 +14,8 @@ export default function BookletViewerPage() {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
-  function refresh() {
+  useEffect(() => {
+    if (authLoading) return;
     listBookletSections(issueId, { isAdmin, uid: user?.uid ?? null })
       .then(async (list) => {
         setSections(list);
@@ -31,31 +28,7 @@ export default function BookletViewerPage() {
         setUrls(Object.fromEntries(entries));
       })
       .catch(() => setError("冊子の内容を取得できませんでした。"));
-  }
-
-  useEffect(() => {
-    if (authLoading) return;
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issueId, authLoading, isAdmin, user?.uid]);
-
-  async function handleMove(section: BookletSection, direction: -1 | 1) {
-    if (!sections) return;
-    const sorted = [...sections].sort((a, b) => a.order - b.order);
-    const index = sorted.findIndex((s) => s.id === section.id);
-    const swapWith = sorted[index + direction];
-    if (!swapWith) return;
-    setError(null);
-    try {
-      await Promise.all([
-        updateBookletSectionOrder(issueId, section.id, swapWith.order),
-        updateBookletSectionOrder(issueId, swapWith.id, section.order),
-      ]);
-      refresh();
-    } catch {
-      setError("並び替えに失敗しました。");
-    }
-  }
 
   return (
     <div>
@@ -93,28 +66,17 @@ export default function BookletViewerPage() {
                   </span>
                 )}
               </span>
-              <span style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-                {isAdmin && (
-                  <>
-                    <button type="button" className="button-outline" onClick={() => handleMove(section, -1)}>
-                      上へ
-                    </button>
-                    <button type="button" className="button-outline" onClick={() => handleMove(section, 1)}>
-                      下へ
-                    </button>
-                  </>
-                )}
-                {urls[section.id] && (
-                  <a
-                    href={urls[section.id]}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="button-outline"
-                  >
-                    開く
-                  </a>
-                )}
-              </span>
+              {urls[section.id] && (
+                <a
+                  href={urls[section.id]}
+                  download={section.fileName}
+                  rel="noreferrer"
+                  className="button-outline"
+                  style={{ flexShrink: 0 }}
+                >
+                  ダウンロード
+                </a>
+              )}
             </div>
           </li>
         ))}
