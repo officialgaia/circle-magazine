@@ -53,13 +53,11 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
 
-      // 完成した冊子セクション。非公開(locked)のセクションは、
-      // 投稿者本人(ownerRosterId の行を選んでいる人)と管理者にしか見えない。編集は管理者のみ。
+      // 完成した冊子セクション。項目(タイトルなど)は非公開(locked)のものも
+      // 含めて全員に見える。非公開セクションのPDF本体は Storage ルール側で
+      // 投稿者本人と管理者以外には読めないようにしている。編集は管理者のみ。
       match /booklet/{sectionId} {
-        allow read: if isAdmin() ||
-          (isSignedIn() && resource.data.locked == false) ||
-          (isSignedIn() && resource.data.ownerRosterId != null &&
-            ownsRoster(resource.data.ownerRosterId));
+        allow read: if isSignedIn();
         allow write: if isAdmin();
       }
 

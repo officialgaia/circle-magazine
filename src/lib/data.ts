@@ -11,7 +11,6 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
-  where,
 } from "firebase/firestore/lite";
 import {
   deleteObject,
@@ -243,39 +242,11 @@ function toBookletSection(id: string, data: Record<string, unknown>): BookletSec
   };
 }
 
-// 非公開(locked)セクションは、投稿者本人(ownerRosterId の行を選んでいる人)と
-// 管理者にしか見えない。Firestoreのクエリは「ルール上返せることが保証できる範囲」
-// しか実行できないため、管理者は無条件の一覧取得、一般メンバーは
-// 「公開セクション」「自分が投稿者のセクション」の2クエリに分けて取得し、マージする。
-// (等値条件のみのクエリにして複合インデックスを不要にし、並び順はクライアント側でソートする)
-export async function listBookletSections(
-  issueId: string,
-  viewer: { isAdmin: boolean; rosterId: string | null },
-): Promise<BookletSection[]> {
-  if (viewer.isAdmin) {
-    const snap = await getDocs(query(bookletCol(issueId), orderBy("order", "asc")));
-    return snap.docs.map((d) => toBookletSection(d.id, d.data()));
-  }
-
-  const publicSnap = await getDocs(
-    query(bookletCol(issueId), where("locked", "==", false)),
-  );
-  const byId = new Map<string, BookletSection>();
-  publicSnap.docs.forEach((d) => byId.set(d.id, toBookletSection(d.id, d.data())));
-
-  if (viewer.rosterId) {
-    // 自分の非公開セクションが取れなくても、公開分の表示は妨げない。
-    try {
-      const ownSnap = await getDocs(
-        query(bookletCol(issueId), where("ownerRosterId", "==", viewer.rosterId)),
-      );
-      ownSnap.docs.forEach((d) => byId.set(d.id, toBookletSection(d.id, d.data())));
-    } catch {
-      // 無視
-    }
-  }
-
-  return Array.from(byId.values()).sort((a, b) => a.order - b.order);
+// 非公開(locked)セクションも項目としては全員に見える(閲覧ボタンは出さない)。
+// PDF本体の保護は Storage ルール側で行う。
+export async function listBookletSections(issueId: string): Promise<BookletSection[]> {
+  const snap = await getDocs(query(bookletCol(issueId), orderBy("order", "asc")));
+  return snap.docs.map((d) => toBookletSection(d.id, d.data()));
 }
 
 export async function addBookletSection(params: {
